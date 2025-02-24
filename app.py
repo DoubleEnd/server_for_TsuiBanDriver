@@ -42,4 +42,4 @@ def get_info_list(moviename):
 if __name__ == "__main__":
     sendInfo = {"code": 200, "msg": "success", "data": get_info_list(moviename="进击的巨人")}
     print(sendInfo)
-
+#提交测试
