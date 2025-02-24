@@ -1,45 +1,22 @@
-import requests
-from lxml import etree
+from flask import Flask, request, jsonify
+from get_info import get_info_list
+from flask_cors import CORS
 
-#获取id列表
-def get_info_list(moviename):
-    try:
-        http = "https://mikanani.me"
-        search = "/Home/Search?searchstr="
-        url = f"{http}{search}{moviename}"
+app = Flask(__name__)
+CORS(app)  # 允许所有跨域请求
 
-        response = requests.get(url)
-        response.raise_for_status()
+@app.route("/searchAllInfo", methods=["GET", "POST"])
+def submit():
+    if request.method == "POST":
+        data = request.json  # 获取 JSON 数据
+        moviename = data.get("name")  # 从 JSON 中提取 name 字段
+        result = get_info_list(moviename)  # 调用 get_info_list 函数
 
-        # 使用 lxml 解析网页内容
-        html = etree.HTML(response.content)
-        len_id_list = len(html.xpath(f'//*[@id="sk-container"]/div[2]/ul/li'))
+        return jsonify({"code": 200, "msg": "success", "data": result})
 
-        data = []
 
-        for i in range(1,len_id_list+1):
-            id_element = html.xpath(f'//*[@id="sk-container"]/div[2]/ul/li[{i}]/a/@href')
-            img_element = html.xpath(f'//*[@id="sk-container"]/div[2]/ul/li[{i}]//a/span/@data-src')
-            title_element = html.xpath(f'//*[@id="sk-container"]/div[2]/ul/li[{i}]/a//div[@class="an-text"]/@title')
-            # print(etree.tostring(img_element[0], encoding='utf-8').decode('utf-8'))
-
-            url_part = img_element[0] # 先通过 url( 分割，取第二个部分
-            image_path = url_part.split('?')[0] # 再通过 ? 分割，取第一个部分
-
-            data.append({
-                "id": id_element[0].split('/')[-1],
-                "img": image_path,
-                "title": title_element[0]
-            })
-
-        return data
-
-    except requests.exceptions.RequestException as e:
-        print(f"请求出错: {e}")
-    except Exception as e:
-        print(f"解析出错: {e}")
+    elif request.method == "GET":
+        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
 if __name__ == "__main__":
-    sendInfo = {"code": 200, "msg": "success", "data": get_info_list(moviename="进击的巨人")}
-    print(sendInfo)
-#提交测试
+    app.run(host="0.0.0.0", debug=True)
