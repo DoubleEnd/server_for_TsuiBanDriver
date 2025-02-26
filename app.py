@@ -19,6 +19,7 @@ def submit_info():
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
+
 @app.route("/getRSSLink", methods=["GET", "POST"])
 def submit_rsslink():
     if request.method == "POST":
