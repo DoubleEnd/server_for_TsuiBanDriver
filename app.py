@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from get_info import get_info_list
-from get_rsslink import get_rss_link
+from api_qBittorrent import get_rss_link
 from get_subgroupinfo import get_subgroup_info
 from flask_cors import CORS
 import requests
