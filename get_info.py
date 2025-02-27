@@ -62,4 +62,4 @@ def get_info_list(banguminame):
 #         print(f"未知错误: {e}")
 #         sendInfo = {"code": 500, "msg": False, "data": "未知错误"}
 
-    print(sendInfo)
+    # print(sendInfo)
