@@ -6,6 +6,11 @@ def get_info_list(banguminame):
     try:
         http = "https://mikanani.me"
         search = "/Home/Search?searchstr="
+        list_item_xpath = "//*[@id='sk-container']/div[2]/ul/li"
+        bangumiId_element_xpah = './/a/@href'
+        img_element_xpah = './/a/span/@data-src'
+        title_element_xpah = './/a//div[@class="an-text"]/@title'
+
         url = f"{http}{search}{banguminame}"
 
         response = requests.get(url)
@@ -13,15 +18,19 @@ def get_info_list(banguminame):
 
         # 使用 lxml 解析网页内容
         html = etree.HTML(response.content)
-        len_id_list = len(html.xpath(f'//*[@id="sk-container"]/div[2]/ul/li'))
+        id_list = html.xpath(list_item_xpath)
+        # print(id_list)
 
         data = []
 
-        for i in range(1,len_id_list+1):
-            bangumiId_element = html.xpath(f'//*[@id="sk-container"]/div[2]/ul/li[{i}]/a/@href')
-            img_element = html.xpath(f'//*[@id="sk-container"]/div[2]/ul/li[{i}]//a/span/@data-src')
-            title_element = html.xpath(f'//*[@id="sk-container"]/div[2]/ul/li[{i}]/a//div[@class="an-text"]/@title')
-            # print(etree.tostring(img_element[0], encoding='utf-8').decode('utf-8'))
+        for i in id_list:
+            print(etree.tostring(i, encoding='utf-8').decode('utf-8'))
+            bangumiId_element = i.xpath(bangumiId_element_xpah)
+            img_element = i.xpath(img_element_xpah)
+            title_element = i.xpath(title_element_xpah)
+            # for j in bangumiId_element:
+            #     print(etree.tostring(j, encoding='utf-8').decode('utf-8'))
+            # print(bangumiId_element)
 
             url_part = img_element[0] # 先通过 url( 分割，取第二个部分
             image_path = url_part.split('?')[0] # 再通过 ? 分割，取第一个部分
@@ -44,7 +53,7 @@ def get_info_list(banguminame):
 
 # if __name__ == "__main__":
 #     try:
-#         result = get_info_list(moviename="进击的巨人")
+#         result = get_info_list(banguminame="进击的巨人")
 #         if result is None:
 #             sendInfo = {"code": 500, "msg": False, "data": "网络请求失败"}
 #         else:
@@ -52,5 +61,5 @@ def get_info_list(banguminame):
 #     except Exception as e:
 #         print(f"未知错误: {e}")
 #         sendInfo = {"code": 500, "msg": False, "data": "未知错误"}
-#
-#     print(sendInfo)
+
+    print(sendInfo)

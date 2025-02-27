@@ -5,6 +5,10 @@ def get_subgroup_info(bangumiId):
     try:
         http = "https://mikanani.me"
         search = "/Home/Bangumi/"
+        subtitle_group_list_xpath = './/*[@id="sk-container"]/div[1]/div[3]/ul/li'
+        subgroupId_element_xpath = './/span[1]/a/@data-anchor'
+        subgroupname_element_xpath = './/span[1]/a/text()'
+
         url = f"{http}{search}{bangumiId}"
 
         response = requests.get(url)
@@ -12,16 +16,16 @@ def get_subgroup_info(bangumiId):
 
         # 使用 lxml 解析网页内容
         html = etree.HTML(response.content)
-        len_subtitle_group_list = len(html.xpath('//*[@id="sk-container"]/div[1]/div[3]/ul/li'))
+        subtitle_group_list = html.xpath(subtitle_group_list_xpath)
 
         data = []
 
-        for i in range(1, len_subtitle_group_list + 1):
-            subgroupid_element = html.xpath(f'//*[@id="sk-container"]/div[1]/div[3]/ul/li[{i}]/span[1]/a/@data-anchor')
-            subgroupname_element = html.xpath(f'//*[@id="sk-container"]/div[1]/div[3]/ul/li[{i}]/span[1]/a/text()')
+        for i in subtitle_group_list :
+            subgroupId_element = i.xpath(subgroupId_element_xpath)
+            subgroupname_element = i.xpath(subgroupname_element_xpath)
 
             data.append({
-                "subgroupid": subgroupid_element[0],
+                "subgroupId": subgroupId_element[0],
                 "subgroupname": subgroupname_element[0]
             })
 
@@ -36,7 +40,7 @@ def get_subgroup_info(bangumiId):
 
 # if __name__ == "__main__":
 #     try:
-#         result = get_subtitle_group_list(bangumiId="1678")
+#         result = get_subgroup_info(bangumiId="1678")
 #         if result is None:
 #             sendInfo = {"code": 500, "msg": False, "data": "网络请求失败"}
 #         else:
