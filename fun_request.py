@@ -9,7 +9,7 @@ def request(config):
     method = config.get('method', 'GET')
     params = config.get('params', {})
     data = config.get('data', {})
-
+    # print(params,'访问参数')
     try:
         if method.upper() == 'GET':
             response = requests.get(url, params=params, cookies=global_cookie)

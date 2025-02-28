@@ -24,7 +24,7 @@ def get_info_list(banguminame):
         data = []
 
         for i in id_list:
-            print(etree.tostring(i, encoding='utf-8').decode('utf-8'))
+            # print(etree.tostring(i, encoding='utf-8').decode('utf-8'))
             bangumiId_element = i.xpath(bangumiId_element_xpah)
             img_element = i.xpath(img_element_xpah)
             title_element = i.xpath(title_element_xpah)

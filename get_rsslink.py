@@ -2,15 +2,17 @@ import fun_request
 from api_qBittorrent import addFeed
 
 
-def get_rss_link(banguminame, subgroupid):
+def get_rss_link(bangumiId, subgroupid):
     http = "https://mikanani.me"
-    search = "/RSS/Search?searchstr="
+    search_bangumiId = "/RSS/Bangumi?bangumiId="
     search_subgroupid = "&subgroupid="
-    url = f"{http}{search}{banguminame}{search_subgroupid}{subgroupid}"
+    url = f"{http}{search_bangumiId}{bangumiId}{search_subgroupid}{subgroupid}"
+
     data = {
         "url": url,
         "path":"",
     }
+
     addFeed(data)
 
     return {"code": 200, "msg": "success"}

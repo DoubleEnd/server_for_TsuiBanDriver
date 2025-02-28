@@ -1,11 +1,11 @@
 import fun_request
 from fun_request import request
 
-def get_all_rss_items(data):
+def get_all_rss_items(params):
     return request({
         "url": "rss/items",
         "method": "get",
-        "data": data
+        "params": params
     })
 
 def login(data):
@@ -23,10 +23,10 @@ def addFeed(data):
     })
 
 
-if __name__ == '__main__':
-    fun_request.global_cookie = login({
-        'username': 'admin',
-        'password': '123456'
-    },)
+# if __name__ == '__main__':
+#     fun_request.global_cookie = login({
+#         'username': 'admin',
+#         'password': '123456'
+#     },)
     # print(get_all_rss_items({}).json())
 
