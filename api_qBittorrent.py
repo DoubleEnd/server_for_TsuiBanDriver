@@ -1,19 +1,19 @@
 import fun_request
 from fun_request import request
 
-def get_all_rss_items(params):
-    return request({
-        "url": "rss/items",
-        "method": "get",
-        "params": params
-    })
-
 def login(data):
     return request({
         "url": "auth/login",
         "method": "post",
         "data": data
     },).cookies
+
+def get_all_rss_items(params):
+    return request({
+        "url": "rss/items",
+        "method": "get",
+        "params": params
+    })
 
 def addFeed(data):
     return request({
