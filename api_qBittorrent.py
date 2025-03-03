@@ -22,6 +22,26 @@ def addFeed(data):
         "data": data
     })
 
+def refreshItem(data):
+    return request({
+        "url": "rss/refreshItem",
+        "method": "post",
+        "data": data
+    })
+
+def removeItem(data):
+    return request({
+        "url": "rss/removeItem",
+        "method": "post",
+        "data": data
+    })
+
+def moveItem(data):
+    return request({
+        "url": "rss/moveItem",
+        "method": "post",
+        "data": data
+    })
 
 # if __name__ == '__main__':
 #     fun_request.global_cookie = login({

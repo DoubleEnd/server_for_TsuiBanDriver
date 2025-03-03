@@ -13,9 +13,7 @@ def get_rss_link(bangumiId, subgroupid):
         "path":"",
     }
 
-    addFeed(data)
-
-    return {"code": 200, "msg": "success"}
+    return addFeed(data)
 
 # if __name__ == '__main__':
 #     fun_request.global_cookie = login({
