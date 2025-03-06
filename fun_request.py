@@ -21,7 +21,7 @@ def request(config):
         elif method.upper() == 'DELETE':
             response = requests.delete(url, params=params, cookies=global_cookie)
         else:
-            raise ValueError(f"Unsupported HTTP method: {method}")
+            raise ValueError(f"该请求方式: {method} 不被支持")
 
         if response.status_code == 401:
             # 处理登录状态过期的情况

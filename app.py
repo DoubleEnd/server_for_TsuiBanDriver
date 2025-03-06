@@ -1,8 +1,5 @@
 import json
-from urllib import parse
-
 from flask import Flask, request, jsonify
-
 import fun_request
 from get_info import get_info_list
 # from api_qBittorrent import get_all_rss_items, login, removeItem, refreshItem, moveItem
@@ -27,8 +24,12 @@ def submit_info():
         msg = "success" if code == 200 else "error"
         # print({"code": code, "msg": msg, "data": result})
         return jsonify({"code": code, "msg": msg, "data": result})
+
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+
+    else:
+        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
 
 
 # 提供字幕组信息，返回选定的字幕组id
@@ -45,6 +46,9 @@ def submit_subgroupinfo():
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
+    else:
+        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+
 
 # 添加RSS订阅链接到订阅列表
 @app.route("/addRssLink", methods=["GET", "POST"])
@@ -58,6 +62,9 @@ def submit_addrsslink():
 
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+
+    else:
+        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
 
 
 # # 获取所有订阅列表
@@ -149,14 +156,17 @@ def submit_everything():
     if request.method == "POST":
         config = request.json
         result = post_everything(config)
+
     elif request.method == "GET":
         config = request.args.to_dict()
         result = get_everything(config)
+
     else:
-        return jsonify({"code": 405, "msg": "Method not allowed", "data": None}), 405
+        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
 
     try:
         data = result.json()
+
     except ValueError:
         return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
 
@@ -164,9 +174,10 @@ def submit_everything():
         return jsonify({"code": result.status_code,
                         "msg": "success" if result.status_code == 200 else "error",
                         "data": data.get("data") if request.method == "POST" else data})
+
     else:
-        # 添加返回值，确保函数在所有情况下都有返回
-        return jsonify({"code": result.status_code, "msg": "No data available", "data": None})
+        return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
+
 
 # 保存下载规则
 @app.route("/setRule", methods=["GET", "POST"])
@@ -174,10 +185,10 @@ def submit_setrule():
     if request.method == "POST":
         data_dict = request.json
         data_dict['ruleDef'] = json.dumps(data_dict['ruleDef'])
-        # data = parse.urlencode(data_dict)
         result = set_rule(data_dict)
+        return jsonify(
+            {"code": result.status_code, "msg": "success" if result.status_code == 200 else "error", "data": None})
 
-        return jsonify({"code": result.status_code, "msg": ("success" if result.status_code == 200 else "error")})
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
