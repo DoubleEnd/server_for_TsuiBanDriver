@@ -1,6 +1,7 @@
 import fun_request
 from fun_request import request
 
+
 def login(data):
     return request({
         "url": "auth/login",
@@ -42,6 +43,29 @@ def addFeed(data):
 #         "method": "post",
 #         "data": data
 #     })
+
+def post_everything(config):
+    return request({
+        "url": config['url'],
+        "method": 'POST',
+        "data": config['data']
+    })
+
+def get_everything(config):
+    #判断键值params是否存在
+    return request({
+        "url": config['url'],
+        "method": 'GET',
+        "params": config
+    })
+
+def set_rule(data):
+    return request({
+        "url": 'rss/setRule',
+        "method": 'POST',
+        "headers":  {"Content-Type": "application/x-www-form-urlencoded"},
+        "data": data
+    })
 
 # if __name__ == '__main__':
 #     fun_request.global_cookie = login({

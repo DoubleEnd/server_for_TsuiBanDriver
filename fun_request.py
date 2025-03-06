@@ -8,13 +8,14 @@ def request(config):
     url = BASE_URL + config.get('url', '')
     method = config.get('method', 'GET')
     params = config.get('params', {})
+    headers = config.get('headers', {})
     data = config.get('data', {})
 
     try:
         if method.upper() == 'GET':
             response = requests.get(url, params=params, cookies=global_cookie)
         elif method.upper() == 'POST':
-            response = requests.post(url, params=params, data=data, cookies=global_cookie)
+            response = requests.post(url, params=params, data=data, cookies=global_cookie, headers=headers)
         elif method.upper() == 'PUT':
             response = requests.put(url, params=params, data=data, cookies=global_cookie)
         elif method.upper() == 'DELETE':

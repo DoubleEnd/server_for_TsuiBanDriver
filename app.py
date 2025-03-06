@@ -1,14 +1,15 @@
+import json
+from urllib import parse
+
 from flask import Flask, request, jsonify
 
 import fun_request
 from get_info import get_info_list
 # from api_qBittorrent import get_all_rss_items, login, removeItem, refreshItem, moveItem
-from api_qBittorrent import login
-from api_test import get_everything, post_everything
+from api_qBittorrent import login, get_everything, post_everything, set_rule
 from get_rsslink import get_rss_link
 from get_subgroupinfo import get_subgroup_info
 from flask_cors import CORS
-import requests
 
 app = Flask(__name__)
 CORS(app)  # 允许所有跨域请求
@@ -110,40 +111,75 @@ def submit_addrsslink():
 #         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
 
-# 万能接口
+# 通用接口
 @app.route("/everything", methods=["GET", "POST"])
+# def submit_everything():
+#     if request.method == "POST":
+#         config = request.json
+#         result = post_everything(config)
+#         try:
+#             data = result.json()
+#         except ValueError:
+#             return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
+#
+#         if data:
+#             return jsonify({"code": result.status_code,
+#                             "msg": "success" if result.status_code == 200 else "error",
+#                             "data": data.get("data")})
+#         else:
+#             pass
+#
+#
+#     elif request.method == "GET":
+#         config = request.args.to_dict()
+#         result = get_everything(config)
+#         # print(config)
+#         try:
+#             data = result.json()
+#             # print(data)
+#         except ValueError:
+#             return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
+#         if data:
+#             return jsonify({"code": result.status_code,
+#                             "msg": "success" if result.status_code == 200 else "error",
+#                             "data": data})
+#         else:
+#             pass
 def submit_everything():
     if request.method == "POST":
         config = request.json
         result = post_everything(config)
-        try:
-            data = result.json()
-        except ValueError:
-            return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
-
-        if data:
-            return jsonify({"code": result.status_code,
-                            "msg": "success" if result.status_code == 200 else "error",
-                            "data": data.get("data")})
-        else:
-            pass
-
-
     elif request.method == "GET":
         config = request.args.to_dict()
         result = get_everything(config)
-        # print(config)
-        try:
-            data = result.json()
-            # print(data)
-        except ValueError:
-            return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
-        if data:
-            return jsonify({"code": result.status_code,
-                            "msg": "success" if result.status_code == 200 else "error",
-                            "data": data})
-        else:
-            pass
+    else:
+        return jsonify({"code": 405, "msg": "Method not allowed", "data": None}), 405
+
+    try:
+        data = result.json()
+    except ValueError:
+        return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
+
+    if data:
+        return jsonify({"code": result.status_code,
+                        "msg": "success" if result.status_code == 200 else "error",
+                        "data": data.get("data") if request.method == "POST" else data})
+    else:
+        # 添加返回值，确保函数在所有情况下都有返回
+        return jsonify({"code": result.status_code, "msg": "No data available", "data": None})
+
+# 保存下载规则
+@app.route("/setRule", methods=["GET", "POST"])
+def submit_setrule():
+    if request.method == "POST":
+        data_dict = request.json
+        data_dict['ruleDef'] = json.dumps(data_dict['ruleDef'])
+        # data = parse.urlencode(data_dict)
+        result = set_rule(data_dict)
+
+        return jsonify({"code": result.status_code, "msg": ("success" if result.status_code == 200 else "error")})
+    elif request.method == "GET":
+        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
 
 if __name__ == "__main__":
