@@ -1,0 +1,17 @@
+{
+  "used_rule": "mikan_project",
+  "rule_list": [
+    {
+      "name": "mikan_project",
+      "title": "蜜柑计划"
+    },
+    {
+      "name": "mio_bt",
+      "title": "MioBT"
+    },
+    {
+      "name": "acg_rip",
+      "title": "ACG.RIP"
+    }
+  ]
+}

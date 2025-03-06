@@ -1,5 +1,4 @@
-import fun_request
-from fun_request import request
+from utils.fun_request import request
 
 
 def login(data):

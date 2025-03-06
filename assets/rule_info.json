@@ -1,0 +1,20 @@
+{
+  "mikan_project": {
+    "base_url": "https://mikanani.me",
+    "home_path": "/Home",
+    "rss_path": "/RSS",
+    "bangumi_path": "/Bangumi/",
+    "query_params_bangumi_id": "/Bangumi?bangumiId=",
+    "query_params_subgroup_id": "&subgroupid=",
+    "query_params_bangumi_name": "/Search?searchstr=",
+    "xpath_bangumi_list_item": "//*[@id='sk-container']/div[2]/ul/li",
+    "xpath_bangumi_id_href": ".//a/@href",
+    "xpath_bangumi_img": ".//a/span/@data-src",
+    "xpath_bangumi_title": ".//a//div[@class='an-text']/@title",
+    "xpath_subgroup_list": ".//*[@id='sk-container']/div[1]/div[3]/ul/li",
+    "xpath_subgroup_id": ".//span[1]/a/@data-anchor",
+    "xpath_subgroup_name": ".//span[1]/a/text()"
+  },
+  "mio_bt": {},
+  "acg_rip": {}
+}

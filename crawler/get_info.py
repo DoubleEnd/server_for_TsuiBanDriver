@@ -7,24 +7,23 @@ from lxml import etree
 #获取id列表
 def get_info_list(banguminame):
     try:
-        http = "https://mikanani.me"
-        search = "/Home/Search?searchstr="
-        rss = "/RSS/Search?searchstr="
-        list_item_xpath = "//*[@id='sk-container']/div[2]/ul/li"
-        bangumiId_element_xpah = './/a/@href'
-        img_element_xpah = './/a/span/@data-src'
-        title_element_xpah = './/a//div[@class="an-text"]/@title'
+        base_url = "https://mikanani.me"
+        home_path = "/Home"
+        rss_path = "/RSS"
+        query_params_bangumi_name = "/Search?searchstr="
+        xpath_bangumi_list_item = "//*[@id='sk-container']/div[2]/ul/li"
+        xpath_bangumi_id_href = './/a/@href'
+        xpath_bangumi_img = './/a/span/@data-src'
+        xpath_bangumi_title = './/a//div[@class="an-text"]/@title'
 
-
-        url = f"{http}{search}{banguminame}"
-        rss_url = f"{http}{rss}{banguminame}"
+        url = f"{base_url}{home_path}{query_params_bangumi_name}{banguminame}"
+        rss_url = f"{base_url}{rss_path}{query_params_bangumi_name}{banguminame}"
 
         response = requests.get(url)
         response.raise_for_status()
 
         html = etree.HTML(response.content)
-        id_list = html.xpath(list_item_xpath)
-        # print(id_list)
+        id_list = html.xpath(xpath_bangumi_list_item)
 
         response_rss = requests.get(rss_url)
         response_rss.raise_for_status()
@@ -40,9 +39,9 @@ def get_info_list(banguminame):
 
         for i in id_list:
             # print(etree.tostring(i, encoding='utf-8').decode('utf-8'))
-            bangumiId_element = i.xpath(bangumiId_element_xpah)
-            img_element = i.xpath(img_element_xpah)
-            title_element = i.xpath(title_element_xpah)
+            bangumiId_element = i.xpath(xpath_bangumi_id_href)
+            img_element = i.xpath(xpath_bangumi_img)
+            title_element = i.xpath(xpath_bangumi_title)
             # for j in bangumiId_element:
             #     print(etree.tostring(j, encoding='utf-8').decode('utf-8'))
             # print(bangumiId_element)
@@ -52,7 +51,7 @@ def get_info_list(banguminame):
 
             data["bangumiItem"].append({
                 "bangumiId": bangumiId_element[0].split('/')[-1],
-                "img": http+image_path,
+                "img": base_url + image_path,
                 "title": title_element[0],
                 "rss_url": rss_url,
             })
@@ -77,7 +76,4 @@ def get_info_list(banguminame):
 #     except Exception as e:
 #         print(f"未知错误: {e}")
 #         sendInfo = {"code": 500, "msg": False, "data": "未知错误"}
-#
 #     print(sendInfo)
-    # a = xml_to_JSON_from_url("https://mikanani.me/RSS/Search?searchstr=进击的巨人第二季")
-    #print(a)

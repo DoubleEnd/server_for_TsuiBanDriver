@@ -3,30 +3,31 @@ from lxml import etree
 
 def get_subgroup_info(bangumiId):
     try:
-        http = "https://mikanani.me"
-        search = "/Home/Bangumi/"
-        subtitle_group_list_xpath = './/*[@id="sk-container"]/div[1]/div[3]/ul/li'
-        subgroupId_element_xpath = './/span[1]/a/@data-anchor'
-        subgroupname_element_xpath = './/span[1]/a/text()'
+        base_url = "https://mikanani.me"
+        home_path = "/Home"
+        bangumi_path = "/Bangumi/"
+        xpath_subgroup_list = './/*[@id="sk-container"]/div[1]/div[3]/ul/li'
+        xpath_subgroup_id = './/span[1]/a/@data-anchor'
+        xpath_subgroup_name = './/span[1]/a/text()'
 
-        url = f"{http}{search}{bangumiId}"
+        url = f"{base_url}{home_path}{bangumi_path}{bangumiId}"
 
         response = requests.get(url)
         response.raise_for_status()
 
         # 使用 lxml 解析网页内容
         html = etree.HTML(response.content)
-        subtitle_group_list = html.xpath(subtitle_group_list_xpath)
+        subgroup_list = html.xpath(xpath_subgroup_list)
 
         data = []
 
-        for i in subtitle_group_list :
-            subgroupId_element = i.xpath(subgroupId_element_xpath)
-            subgroupname_element = i.xpath(subgroupname_element_xpath)
+        for i in subgroup_list :
+            subgroup_id = i.xpath(xpath_subgroup_id)
+            subgroup_name = i.xpath(xpath_subgroup_name)
 
             data.append({
-                "subgroupId": subgroupId_element[0],
-                "subgroupname": subgroupname_element[0]
+                "subgroupId": subgroup_id[0],
+                "subgroupname": subgroup_name[0]
             })
 
         return data

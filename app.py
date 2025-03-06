@@ -1,11 +1,11 @@
 import json
 from flask import Flask, request, jsonify
-import fun_request
-from get_info import get_info_list
+from utils import fun_request
+from crawler.get_info import get_info_list
 # from api_qBittorrent import get_all_rss_items, login, removeItem, refreshItem, moveItem
-from api_qBittorrent import login, get_everything, post_everything, set_rule
-from get_rsslink import get_rss_link
-from get_subgroupinfo import get_subgroup_info
+from api.api_qBittorrent import login, get_everything, post_everything, set_rule
+from crawler.get_rsslink import get_rss_link
+from crawler.get_subgroupinfo import get_subgroup_info
 from flask_cors import CORS
 
 app = Flask(__name__)
