@@ -7,7 +7,7 @@ from api.api_qBittorrent import login, get_everything, post_everything, set_rule
 from crawler.get_rsslink import get_rss_link
 from crawler.get_subgroupinfo import get_subgroup_info
 from flask_cors import CORS
-from utils.function_rule import update_used_rule, request_rule_msg ,get_rule_names
+from utils.fun_rule import update_used_rule, request_rule_msg ,get_rule_names
 from utils.fun_request import global_cookie
 
 

@@ -3,7 +3,7 @@ import json
 import requests
 import xmltodict
 from lxml import etree
-from utils.function_rule import match_rule
+from utils.fun_rule import match_rule
 
 
 #获取id列表

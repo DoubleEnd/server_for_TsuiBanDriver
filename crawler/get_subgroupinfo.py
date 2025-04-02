@@ -1,7 +1,7 @@
 import requests
 from lxml import etree
 
-from utils.function_rule import match_rule
+from utils.fun_rule import match_rule
 
 
 def get_subgroup_info(bangumiId):
