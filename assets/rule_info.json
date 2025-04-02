@@ -16,5 +16,9 @@
     "xpath_subgroup_name": ".//span[1]/a/text()"
   },
   "mio_bt": {},
-  "acg_rip": {}
+  "acg_rip": {
+    "base_url": "https://acg.rip/",
+    "rss_path": "/.xml",
+    "query_params_bangumi_name": "?term="
+  }
 }

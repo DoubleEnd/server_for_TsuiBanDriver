@@ -7,6 +7,9 @@ from api.api_qBittorrent import login, get_everything, post_everything, set_rule
 from crawler.get_rsslink import get_rss_link
 from crawler.get_subgroupinfo import get_subgroup_info
 from flask_cors import CORS
+from utils.match_rule import update_used_rule, request_rule_msg ,get_rule_names
+from utils.fun_request import global_cookie
+
 
 app = Flask(__name__)
 CORS(app)  # 允许所有跨域请求
@@ -191,6 +194,33 @@ def submit_setrule():
 
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+
+# 获取规则列表
+@app.route("/getRuleList", methods=["GET", "POST"])
+def submit_getrulelist():
+    if request.method == "GET":
+        data = get_rule_names()
+        return jsonify({"code": 200, "msg": "success", "data": data})
+
+    elif request.method == "POST    ":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
+
+# 匹配下载规则
+@app.route("/matchRule", methods=["GET", "POST"])
+def submit_matchrule():
+        if request.method == "POST":
+            data = request.get_json()
+            if 'rule_name' not in data:
+                return jsonify({"error": "缺少必要的参数 rule_name"}), 400
+            rule_name = data['rule_name']
+            if update_used_rule(rule_name):
+                return jsonify({"code": 200, "msg": "success", "data": request_rule_msg(rule_name)})
+            else:
+                return jsonify({"code": 404, "msg": "error", "data": {"无效的规则名称": rule_name}})
+
+        elif request.method == "GET":
+            return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
 
 if __name__ == "__main__":

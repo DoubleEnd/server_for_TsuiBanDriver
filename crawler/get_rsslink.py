@@ -1,11 +1,13 @@
 from api.api_qBittorrent import addFeed
+from utils.match_rule import match_rule
 
 
 def get_rss_link(bangumiId, subgroupid):
-    base_url = "https://mikanani.me"
-    rss_path = "/RSS"
-    query_params_bangumi_id = "/Bangumi?bangumiId="
-    query_params_subgroup_id = "&subgroupid="
+    rule = match_rule()
+    base_url = rule["base_url"]
+    rss_path = rule["rss_path"]
+    query_params_bangumi_id = rule["query_params_bangumi_id"]
+    query_params_subgroup_id = rule["query_params_subgroup_id"]
     url = f"{base_url}{rss_path}{query_params_bangumi_id}{bangumiId}{query_params_subgroup_id}{subgroupid}"
 
     data = {

@@ -1,14 +1,18 @@
 import requests
 from lxml import etree
 
+from utils.match_rule import match_rule
+
+
 def get_subgroup_info(bangumiId):
+    rule = match_rule()
     try:
-        base_url = "https://mikanani.me"
-        home_path = "/Home"
-        bangumi_path = "/Bangumi/"
-        xpath_subgroup_list = './/*[@id="sk-container"]/div[1]/div[3]/ul/li'
-        xpath_subgroup_id = './/span[1]/a/@data-anchor'
-        xpath_subgroup_name = './/span[1]/a/text()'
+        base_url = rule["base_url"]
+        home_path = rule["home_path"]
+        bangumi_path = rule["bangumi_path"]
+        xpath_subgroup_list = rule["xpath_subgroup_list"]
+        xpath_subgroup_id = rule["xpath_subgroup_id"]
+        xpath_subgroup_name = rule["xpath_subgroup_name"]
 
         url = f"{base_url}{home_path}{bangumi_path}{bangumiId}"
 

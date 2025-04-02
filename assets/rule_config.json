@@ -1,5 +1,8 @@
 {
-  "used_rule": "mikan_project",
+  "used_rule": {
+    "name": "mikan_project",
+    "title": "蜜柑计划"
+  },
   "rule_list": [
     {
       "name": "mikan_project",
