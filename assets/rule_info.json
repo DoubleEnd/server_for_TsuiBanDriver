@@ -15,10 +15,19 @@
     "xpath_subgroup_id": ".//span[1]/a/@data-anchor",
     "xpath_subgroup_name": ".//span[1]/a/text()"
   },
-  "mio_bt": {},
+  "mio_bt": {
+    "base_url": "https://www.miobt.com",
+    "rss_path": "/rss",
+    "query_params_bangumi_name": "-"
+  },
   "acg_rip": {
     "base_url": "https://acg.rip/",
     "rss_path": "/.xml",
     "query_params_bangumi_name": "?term="
+  },
+  "bangumi_moe": {
+    "base_url": "https://bangumi.moe",
+    "rss_path": "/rss",
+    "query_params_bangumi_name": "/search/"
   }
 }

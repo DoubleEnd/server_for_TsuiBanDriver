@@ -7,7 +7,7 @@ from api.api_qBittorrent import login, get_everything, post_everything, set_rule
 from crawler.get_rsslink import get_rss_link
 from crawler.get_subgroupinfo import get_subgroup_info
 from flask_cors import CORS
-from utils.fun_rule import update_used_rule, request_rule_msg ,get_rule_names
+from utils.fun_rule import update_used_rule, request_rule_msg, get_rule_config, get_rule_info, add_edit_rule
 from utils.fun_request import global_cookie
 
 
@@ -195,11 +195,21 @@ def submit_setrule():
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
-# 获取规则列表
+# 获取规则配置列表
 @app.route("/getRuleList", methods=["GET", "POST"])
 def submit_getrulelist():
     if request.method == "GET":
-        data = get_rule_names()
+        data = get_rule_config()
+        return jsonify({"code": 200, "msg": "success", "data": data})
+
+    elif request.method == "POST    ":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
+# 获取规则信息列表
+@app.route("/getRuleInfoList", methods=["GET", "POST"])
+def submit_getruleinfolist():
+    if request.method == "GET":
+        data = get_rule_info()
         return jsonify({"code": 200, "msg": "success", "data": data})
 
     elif request.method == "POST    ":
@@ -218,6 +228,20 @@ def submit_matchrule():
                 return jsonify({"code": 200, "msg": "success", "data": request_rule_msg(rule_name)})
             else:
                 return jsonify({"code": 404, "msg": "error", "data": {"无效的规则名称": rule_name}})
+
+        elif request.method == "GET":
+            return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+
+# 新增或编辑下载规则
+@app.route("/addEditRule", methods=["GET", "POST"])
+def submit_addeditrule():
+        if request.method == "POST":
+            data = request.get_json()
+            add_edit_rule(data)
+            if add_edit_rule(data):
+                return jsonify({"code": 200, "msg": "success", "data": None})
+            else:
+                return jsonify({"code": 404, "msg": "error", "data": "新增或修改失败"})
 
         elif request.method == "GET":
             return jsonify({"error": "请使用 POST 方法提交数据"}), 400
