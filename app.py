@@ -7,7 +7,8 @@ from api.api_qBittorrent import login, get_everything, post_everything, set_rule
 from crawler.get_rsslink import get_rss_link
 from crawler.get_subgroupinfo import get_subgroup_info
 from flask_cors import CORS
-from utils.fun_rule import update_used_rule, request_rule_msg, get_rule_config, get_rule_info, add_edit_rule
+from utils.fun_rule import update_used_rule, request_rule_msg, get_rule_config, get_rule_info, add_edit_rule, \
+    delete_rule
 from utils.fun_request import global_cookie
 
 
@@ -220,7 +221,7 @@ def submit_getruleinfolist():
 @app.route("/matchRule", methods=["GET", "POST"])
 def submit_matchrule():
         if request.method == "POST":
-            data = request.get_json()
+            data = request.json
             if 'rule_name' not in data:
                 return jsonify({"error": "缺少必要的参数 rule_name"}), 400
             rule_name = data['rule_name']
@@ -236,7 +237,7 @@ def submit_matchrule():
 @app.route("/addEditRule", methods=["GET", "POST"])
 def submit_addeditrule():
         if request.method == "POST":
-            data = request.get_json()
+            data = request.json
             add_edit_rule(data)
             if add_edit_rule(data):
                 return jsonify({"code": 200, "msg": "success", "data": None})
@@ -246,6 +247,21 @@ def submit_addeditrule():
         elif request.method == "GET":
             return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
+# 删除下载规则
+@app.route("/deleteRule", methods=["GET", "POST"])
+def submit_deleterule():
+    if request.method == "POST":
+        data = request.json
+        if 'name' not in data:
+            return jsonify({"code": 400, "msg": "error", "data": "缺少规则名称"}), 400
+
+        rule_name = data['name']
+        if delete_rule(rule_name):
+            return jsonify({"code": 200, "msg": "success", "data": None})
+        else:
+            return jsonify({"code": 404, "msg": "error", "data": "规则不存在"})
+    elif request.method == "GET":
+        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
 if __name__ == "__main__":
     fun_request.global_cookie = login({

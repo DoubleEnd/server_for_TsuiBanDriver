@@ -52,7 +52,6 @@ def match_rule():
     rule_info = load_json(rule_info_path)
     return rule_info.get(used_rule_name)
 
-#新增或编辑规则
 # 新增或编辑规则
 def add_edit_rule(data):
     rule_config = load_json(rule_config_path)
@@ -76,6 +75,30 @@ def add_edit_rule(data):
         }
         rule_config['rule_list'].append(new_rule)
         rule_info[data["name"]] = data["info"]  # 新增 rule_info 中的信息
+
+    # 保存更新后的配置文件
+    save_json(rule_config_path, rule_config)
+    save_json(rule_info_path, rule_info)
+
+    return is_exist
+
+# 删除规则
+def delete_rule(rule_name):
+    rule_config = load_json(rule_config_path)
+    rule_info = load_json(rule_info_path)
+
+    # 检查规则是否已存在
+    is_exist = False
+    for rule in rule_config['rule_list']:
+        if rule['name'] == rule_name:
+            # 如果规则已存在，从 rule_list 中删除该规则
+            rule_config['rule_list'].remove(rule)
+            is_exist = True
+            break
+
+    # 如果规则存在，从 rule_info 中删除该规则的信息
+    if is_exist:
+        rule_info.pop(rule_name, None)  # 使用 pop 方法删除键，避免 KeyError
 
     # 保存更新后的配置文件
     save_json(rule_config_path, rule_config)
