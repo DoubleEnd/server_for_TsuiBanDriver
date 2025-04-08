@@ -51,7 +51,6 @@ def post_everything(config):
     })
 
 def get_everything(config):
-    #判断键值params是否存在
     return request({
         "url": config['url'],
         "method": 'GET',
@@ -64,6 +63,20 @@ def set_rule(data):
         "method": 'POST',
         "headers":  {"Content-Type": "application/x-www-form-urlencoded"},
         "data": data
+    })
+
+def get_version(data):
+    return request({
+        "url": 'app/version',
+        "method": 'GET',
+        "params": data
+    })
+
+def get_webapiVersion(data):
+    return request({
+        "url": 'app/webapiVersion',
+        "method": 'GET',
+        "params": data
     })
 
 # if __name__ == '__main__':

@@ -1,0 +1,9 @@
+[
+    { "name": "后端版本", "value": "1.0.0" },
+    { "name": "作者", "value": "@DoubleEnd" },
+    { "name": "邮箱", "value": "doubleend@qq.com" },
+    { "name": "项目地址", "value": "server_for_TsuiBanDriver", "href": "https://github.com/DoubleEnd/server_for_TsuiBanDriver" },
+    { "name": "开源协议", "value": "CC BY-NC 4.0", "href": "https://creativecommons.org/licenses/by-nc/4.0/deed.zh-hans" },
+    { "name": "qbittorrent版本", "value": "" },
+    { "name": "qbittorrentWebApi版本", "value": "" }
+]

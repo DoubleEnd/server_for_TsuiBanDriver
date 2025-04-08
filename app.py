@@ -1,14 +1,16 @@
 import json
+from wsgiref.simple_server import server_version
+
 from flask import Flask, request, jsonify
 from utils import fun_request
 from crawler.get_info import get_info_list
 # from api_qBittorrent import get_all_rss_items, login, removeItem, refreshItem, moveItem
-from api.api_qBittorrent import login, get_everything, post_everything, set_rule
+from api.api_qBittorrent import login, get_everything, post_everything, set_rule, get_version, get_webapiVersion
 from crawler.get_rsslink import get_rss_link
 from crawler.get_subgroupinfo import get_subgroup_info
 from flask_cors import CORS
 from utils.fun_rule import update_used_rule, request_rule_msg, get_rule_config, get_rule_info, add_edit_rule, \
-    delete_rule
+    delete_rule, load_json
 from utils.fun_request import global_cookie
 
 
@@ -182,6 +184,27 @@ def submit_everything():
     else:
         return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
 
+# 发送版本信息
+@app.route("/allVersion", methods=["GET", "POST"])
+def submit_allversion():
+    if request.method == "GET":
+        qb_version = get_version(data='').text
+        webapi_version  = get_webapiVersion(data='').text
+        app_info = load_json("assets/app_info.json")
+        for info in app_info:
+            if info["name"] == "qbittorrent版本":
+                info["value"] = qb_version
+            if info["name"] == "qbittorrentWebApi版本":
+                info["value"] = webapi_version
+        data = {
+            "app_info": app_info,
+        }
+        return jsonify({"code": get_version('').status_code and get_webapiVersion('').status_code,
+                        "msg": "success" if get_version('').status_code and get_webapiVersion('').status_code ==200 else "error",
+                        "data": data})
+
+    elif request.method == "POST":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 
 # 保存下载规则
 @app.route("/setRule", methods=["GET", "POST"])
@@ -262,6 +285,8 @@ def submit_deleterule():
             return jsonify({"code": 404, "msg": "error", "data": "规则不存在"})
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+
+
 
 if __name__ == "__main__":
     fun_request.global_cookie = login({
