@@ -1,7 +1,8 @@
 import json
-from wsgiref.simple_server import server_version
 
 from flask import Flask, request, jsonify
+
+from api.api_dandanPlay import welcome, library, bangumi, bangumiList, getSubtitle
 from utils import fun_request
 from crawler.get_info import get_info_list
 # from api_qBittorrent import get_all_rss_items, login, removeItem, refreshItem, moveItem
@@ -16,7 +17,6 @@ from utils.fun_request import global_cookie
 
 app = Flask(__name__)
 CORS(app)  # 允许所有跨域请求
-
 
 # 提供动漫信息，返回选定的动漫id
 @app.route("/searchAllInfo", methods=["GET", "POST"])
@@ -124,7 +124,7 @@ def submit_addrsslink():
 #         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
 
-# 通用接口
+# qBittorrent通用接口
 @app.route("/everything", methods=["GET", "POST"])
 # def submit_everything():
 #     if request.method == "POST":
@@ -184,7 +184,7 @@ def submit_everything():
     else:
         return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
 
-# 发送版本信息
+# 发送qBittorrent版本信息和个人信息
 @app.route("/allVersion", methods=["GET", "POST"])
 def submit_allversion():
     if request.method == "GET":
@@ -206,7 +206,7 @@ def submit_allversion():
     elif request.method == "POST":
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 
-# 保存下载规则
+# qBittorrent保存下载规则
 @app.route("/setRule", methods=["GET", "POST"])
 def submit_setrule():
     if request.method == "POST":
@@ -286,7 +286,68 @@ def submit_deleterule():
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
+# 获取dandanPlay欢迎信息
+@app.route("/welcome", methods=["GET", "POST"])
+def submit_welcome():
+    if request.method == "GET":
+        data = welcome(params='')
+        if data:
+            return data.text
+        else:
+            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
+    elif request.method == "POST":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 
+# 获取dandanPlay媒体库中的所有内容
+@app.route("/library", methods=["GET", "POST"])
+def submit_library():
+    if request.method == "GET":
+        data = library(params='')
+        if data:
+            return data.text
+        else:
+            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
+    elif request.method == "POST":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
+# 获取剧集分类
+@app.route("/bangumi", methods=["GET", "POST"])
+def submit_bangumi():
+    if request.method == "GET":
+        # 获取 URL 查询参数并转换为字典
+        params = request.args.to_dict()
+        result = bangumi(params=params['params'])
+        if result:
+            return result.text
+        else:
+            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
+    elif request.method == "POST":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
+# 获取单部番的所有分集
+@app.route("/bangumiList", methods=["GET", "POST"])
+def submit_bangumiList():
+    if request.method == "GET":
+        params = request.args.to_dict()
+        result = bangumiList(params=params['params'])
+        if result:
+            return result.text
+        else:
+            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
+    elif request.method == "POST":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
+# 获取字幕
+@app.route("/getSubtitle", methods=["GET", "POST"])
+def submit_getSubtitle():
+    if request.method == "GET":
+        params = request.args.to_dict()
+        # print(params)
+        data = getSubtitle(params=params['videoId'])
+        # print(data)
+        return data
+    elif request.method == "POST":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 
 if __name__ == "__main__":
     fun_request.global_cookie = login({
@@ -294,3 +355,4 @@ if __name__ == "__main__":
         'password': '123456'
     }, )
     app.run(host="0.0.0.0", debug=True)
+    # app.run(host="0.0.0.0")

@@ -1,12 +1,13 @@
-from utils.fun_request import request
+from utils.fun_request import api_qBittorrent_request
 
 
 def login(data):
-    return request({
+    return api_qBittorrent_request({
         "url": "auth/login",
         "method": "post",
         "data": data
-    },).cookies
+    }).cookies
+
 
 # def get_all_rss_items(params):
 #     return request({
@@ -16,7 +17,7 @@ def login(data):
 #     })
 #
 def addFeed(data):
-    return request({
+    return api_qBittorrent_request({
         "url": "rss/addFeed",
         "method": "post",
         "data": data
@@ -44,36 +45,36 @@ def addFeed(data):
 #     })
 
 def post_everything(config):
-    return request({
+    return api_qBittorrent_request({
         "url": config['url'],
         "method": 'POST',
         "data": config['data']
     })
 
 def get_everything(config):
-    return request({
+    return api_qBittorrent_request({
         "url": config['url'],
         "method": 'GET',
         "params": config
     })
 
 def set_rule(data):
-    return request({
+    return api_qBittorrent_request({
         "url": 'rss/setRule',
         "method": 'POST',
-        "headers":  {"Content-Type": "application/x-www-form-urlencoded"},
+        "headers": {"Content-Type": "application/x-www-form-urlencoded"},
         "data": data
     })
 
 def get_version(data):
-    return request({
+    return api_qBittorrent_request({
         "url": 'app/version',
         "method": 'GET',
         "params": data
     })
 
 def get_webapiVersion(data):
-    return request({
+    return api_qBittorrent_request({
         "url": 'app/webapiVersion',
         "method": 'GET',
         "params": data

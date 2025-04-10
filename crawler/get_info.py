@@ -5,7 +5,6 @@ import xmltodict
 from lxml import etree
 from utils.fun_rule import match_rule
 
-
 #获取id列表
 def get_info_list(banguminame):
     rule = match_rule()
