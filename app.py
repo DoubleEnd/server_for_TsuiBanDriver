@@ -190,12 +190,16 @@ def submit_allversion():
     if request.method == "GET":
         qb_version = get_version(data='').text
         webapi_version  = get_webapiVersion(data='').text
+        dandan_play_version = welcome(params='').json()['version']
+        # print(dandan_play_version)
         app_info = load_json("assets/app_info.json")
         for info in app_info:
             if info["name"] == "qbittorrent版本":
                 info["value"] = qb_version
             if info["name"] == "qbittorrentWebApi版本":
                 info["value"] = webapi_version
+            if info["name"] == "dandanPlay版本":
+                info["value"] = dandan_play_version
         data = {
             "app_info": app_info,
         }
@@ -286,29 +290,29 @@ def submit_deleterule():
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
-# 获取dandanPlay欢迎信息
-@app.route("/welcome", methods=["GET", "POST"])
-def submit_welcome():
-    if request.method == "GET":
-        data = welcome(params='')
-        if data:
-            return data.text
-        else:
-            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
-    elif request.method == "POST":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
-
-# 获取dandanPlay媒体库中的所有内容
-@app.route("/library", methods=["GET", "POST"])
-def submit_library():
-    if request.method == "GET":
-        data = library(params='')
-        if data:
-            return data.text
-        else:
-            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
-    elif request.method == "POST":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+# # 获取dandanPlay欢迎信息
+# @app.route("/welcome", methods=["GET", "POST"])
+# def submit_welcome():
+#     if request.method == "GET":
+#         data = welcome(params='')
+#         if data:
+#             return data.text
+#         else:
+#             return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
+#     elif request.method == "POST":
+#         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+#
+# # 获取dandanPlay媒体库中的所有内容
+# @app.route("/library", methods=["GET", "POST"])
+# def submit_library():
+#     if request.method == "GET":
+#         data = library(params='')
+#         if data:
+#             return data.text
+#         else:
+#             return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
+#     elif request.method == "POST":
+#         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 
 # 获取剧集分类
 @app.route("/bangumi", methods=["GET", "POST"])

@@ -6,5 +6,6 @@
     { "name": "开源协议", "value": "CC BY-NC 4.0", "href": "https://creativecommons.org/licenses/by-nc/4.0/deed.zh-hans" },
     { "name": "分割线" },
     { "name": "qbittorrent版本", "value": "", "href":"https://www.fosshub.com/qBittorrent.html"},
-    { "name": "qbittorrentWebApi版本", "value": "", "href":"https://github.com/qbittorrent/wiki/blob/master/WebUI-API-(qBittorrent-5.0).md"}
+    { "name": "qbittorrentWebApi版本", "value": "", "href":"https://github.com/qbittorrent/wiki/blob/master/WebUI-API-(qBittorrent-5.0).md"},
+    { "name": "dandanPlay版本", "value": "", "href": "https://www.dandanplay.com/"}
 ]
