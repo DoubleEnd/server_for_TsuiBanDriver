@@ -2,7 +2,7 @@ import json
 
 from flask import Flask, request, jsonify
 
-from api.api_dandanPlay import welcome, library, bangumi, bangumiList, getSubtitle
+from api.api_dandanPlay import welcome, bangumi, bangumiList, getSubtitle
 from utils import fun_request
 from crawler.get_info import get_info_list
 # from api_qBittorrent import get_all_rss_items, login, removeItem, refreshItem, moveItem
@@ -12,7 +12,6 @@ from crawler.get_subgroupinfo import get_subgroup_info
 from flask_cors import CORS
 from utils.fun_rule import update_used_rule, request_rule_msg, get_rule_config, get_rule_info, add_edit_rule, \
     delete_rule, load_json
-from utils.fun_request import global_cookie
 
 
 app = Flask(__name__)
