@@ -1,0 +1,33 @@
+{
+  "mikan_project": {
+    "bangumi_path": "/Bangumi/",
+    "base_url": "https://mikanani.me",
+    "home_path": "/Home",
+    "query_params_bangumi_id": "/Bangumi?bangumiId=",
+    "query_params_bangumi_name": "/Search?searchstr=",
+    "query_params_subgroup_id": "&subgroupid=",
+    "rss_path": "/RSS",
+    "xpath_bangumi_id_href": ".//a/@href",
+    "xpath_bangumi_img": ".//a/span/@data-src",
+    "xpath_bangumi_list_item": "//*[@id='sk-container']/div[2]/ul/li",
+    "xpath_bangumi_title": ".//a//div[@class='an-text']/@title",
+    "xpath_subgroup_id": ".//span[1]/a/@data-anchor",
+    "xpath_subgroup_list": ".//*[@id='sk-container']/div[1]/div[3]/ul/li",
+    "xpath_subgroup_name": ".//span[1]/a/text()"
+  },
+  "mio_bt": {
+    "base_url": "https://www.miobt.com",
+    "query_params_bangumi_name": "-",
+    "rss_path": "/rss"
+  },
+  "acg_rip": {
+    "base_url": "https://acg.rip/",
+    "rss_path": "/.xml",
+    "query_params_bangumi_name": "?term="
+  },
+  "bangumi_moe": {
+    "base_url": "https://bangumi.moe",
+    "rss_path": "/rss",
+    "query_params_bangumi_name": "/search/"
+  }
+}

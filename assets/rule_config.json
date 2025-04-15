@@ -1,0 +1,24 @@
+{
+  "used_rule": {
+    "name": "acg_rip",
+    "title": "ACG.RIP"
+  },
+  "rule_list": [
+    {
+      "name": "mikan_project",
+      "title": "蜜柑计划"
+    },
+    {
+      "name": "mio_bt",
+      "title": "MioBT"
+    },
+    {
+      "name": "acg_rip",
+      "title": "ACG.RIP"
+    },
+    {
+      "name": "bangumi_moe",
+      "title": "萌番组"
+    }
+  ]
+}
