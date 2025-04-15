@@ -7,6 +7,7 @@
     "query_params_bangumi_name": "/Search?searchstr=",
     "query_params_subgroup_id": "&subgroupid=",
     "rss_path": "/RSS",
+    "rss_suffix": "",
     "xpath_bangumi_id_href": ".//a/@href",
     "xpath_bangumi_img": ".//a/span/@data-src",
     "xpath_bangumi_list_item": "//*[@id='sk-container']/div[2]/ul/li",
@@ -18,16 +19,19 @@
   "mio_bt": {
     "base_url": "https://www.miobt.com",
     "query_params_bangumi_name": "-",
-    "rss_path": "/rss"
+    "rss_path": "/rss",
+    "rss_suffix": ".xml"
   },
   "acg_rip": {
     "base_url": "https://acg.rip/",
     "rss_path": "/.xml",
-    "query_params_bangumi_name": "?term="
+    "query_params_bangumi_name": "?term=",
+    "rss_suffix": ""
   },
   "bangumi_moe": {
     "base_url": "https://bangumi.moe",
     "rss_path": "/rss",
-    "query_params_bangumi_name": "/search/"
+    "query_params_bangumi_name": "/search/",
+    "rss_suffix": ""
   }
 }

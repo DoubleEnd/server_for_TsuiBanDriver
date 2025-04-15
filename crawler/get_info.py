@@ -5,6 +5,8 @@ import xmltodict
 from lxml import etree
 from utils.fun_config import match_rule
 
+
+header = {"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"}
 #获取id列表
 def get_info_list(banguminame):
     rule = match_rule()
@@ -13,8 +15,9 @@ def get_info_list(banguminame):
         base_url = rule["base_url"]
         rss_path = rule["rss_path"]
         query_params_bangumi_name = rule["query_params_bangumi_name"]
+        rss_suffix = rule["rss_suffix"]
 
-        rss_url = f"{base_url}{rss_path}{query_params_bangumi_name}{banguminame}"
+        rss_url = f"{base_url}{rss_path}{query_params_bangumi_name}{banguminame}{rss_suffix}"
         # print(rss_url)
 
         if "home_path" in rule:
@@ -36,7 +39,7 @@ def get_info_list(banguminame):
         return None  # 在解析出错时返回 None
 
 def getRssList(rss_url):
-    response_rss = requests.get(rss_url)
+    response_rss = requests.get(rss_url,headers=header)
     response_rss.raise_for_status()
     xml_content = response_rss.text
     # 将 XML 转换为 JSON
@@ -52,7 +55,7 @@ def getBangumiItem(url,base_url,rss_url,rule):
 
     bangumiItem = []
 
-    response = requests.get(url)
+    response = requests.get(url,headers=header)
     response.raise_for_status()
 
     html = etree.HTML(response.content)
