@@ -2,7 +2,7 @@ import json
 
 rule_config_path = 'assets/rule_config.json'
 rule_info_path = 'assets/rule_info.json'
-url_config_path = 'assets/url.json'
+url_config_path = 'assets/url_config.json'
 
 # 读取规则配置文件
 def load_json(file_path):
