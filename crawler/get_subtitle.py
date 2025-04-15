@@ -1,7 +1,10 @@
 import requests
 from lxml import etree
+from utils.fun_config import get_url_config
 
-dandanPlay_BASE_URL = 'http://100.65.133.102:8888'
+# dandanPlay_BASE_URL = 'http://100.65.133.102:8888'
+dandanPlay_BASE_URL = get_url_config()['dandanPlay_BASE_URL']
+
 def is_subtitle(videoId):
     try:
         url = f"{dandanPlay_BASE_URL}/web1/video.html?id={videoId}"

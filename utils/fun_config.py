@@ -2,11 +2,16 @@ import json
 
 rule_config_path = 'assets/rule_config.json'
 rule_info_path = 'assets/rule_info.json'
+url_config_path = 'assets/url.json'
 
 # 读取规则配置文件
 def load_json(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
         return json.load(file)
+
+def get_url_config():
+    url_config = load_json(url_config_path)
+    return url_config
 
 # 获取规则配置文件
 def get_rule_config():

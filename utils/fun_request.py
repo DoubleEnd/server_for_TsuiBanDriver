@@ -1,9 +1,12 @@
 import requests
 
-global_cookie = ''
-qBittorrent_BASE_URL = 'http://100.65.133.102:8080/api/v2/'
-dandanPlay_BASE_URL = 'http://100.65.133.102:8888'
+from utils.fun_config import get_url_config
 
+global_cookie = ''
+# qBittorrent_BASE_URL = 'http://100.65.133.102:8080/api/v2/'
+qBittorrent_BASE_URL = get_url_config()['qBittorrent_BASE_URL']
+# dandanPlay_BASE_URL = 'http://100.65.133.102:8888'
+dandanPlay_BASE_URL = get_url_config()['dandanPlay_BASE_URL']
 def api_qBittorrent_request(config):
     url = qBittorrent_BASE_URL + config.get('url', '')
     return request(config,url)

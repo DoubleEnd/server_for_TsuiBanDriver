@@ -1,5 +1,5 @@
 from api.api_qBittorrent import addFeed
-from utils.fun_rule import match_rule
+from utils.fun_config import match_rule
 
 
 def get_rss_link(bangumiId, subgroupid):
