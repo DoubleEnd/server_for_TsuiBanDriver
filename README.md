@@ -57,7 +57,7 @@ server_for_TsuiBanDriver
 - `url_config.json`: 包含 URL 配置。
 
 ## 许可证
-本项目采用知识共享署名-非商业性使用 4.0 国际 (CC BY-NC 4.0) 许可证。
+本项目采用 AGPL-3.0 许可证。有关详细信息，请查看 LICENSE 文件。
 
 ## 注意
 请确保在使用本项目时遵守相关法律法规，不得用于非法用途。
