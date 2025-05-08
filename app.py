@@ -2,7 +2,8 @@ import json
 
 from flask import Flask, request, jsonify
 
-from api.api_dandanPlay import welcome, bangumi, bangumiList, getSubtitle
+from ai.ai import transcribe_audio_to_srt
+from api.api_dandanPlay import welcome, bangumi, bangumiList, getSubtitle, library
 from utils import fun_request
 from crawler.get_info import get_info_list
 # from api_qBittorrent import get_all_rss_items, login, removeItem, refreshItem, moveItem
@@ -301,17 +302,18 @@ def submit_deleterule():
 #     elif request.method == "POST":
 #         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 #
-# # 获取dandanPlay媒体库中的所有内容
-# @app.route("/library", methods=["GET", "POST"])
-# def submit_library():
-#     if request.method == "GET":
-#         data = library(params='')
-#         if data:
-#             return data.text
-#         else:
-#             return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
-#     elif request.method == "POST":
-#         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
+# 获取dandanPlay媒体库中的所有内容
+@app.route("/library", methods=["GET", "POST"])
+def submit_library():
+    if request.method == "GET":
+        data = library(params='')
+        if data:
+            return data.text
+        else:
+            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
+    elif request.method == "POST":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 
 # 获取剧集分类
 @app.route("/bangumi", methods=["GET", "POST"])
@@ -347,6 +349,18 @@ def submit_getSubtitle():
         params = request.args.to_dict()
         # print(params)
         data = getSubtitle(params=params['videoId'])
+        # print(data)
+        return data
+    elif request.method == "POST":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
+# AI生成字幕
+@app.route("/aiSubtitle", methods=["GET", "POST"])
+def submit_aiSubtitle():
+    if request.method == "GET":
+        params = request.args.to_dict()
+        # print(params)
+        data = transcribe_audio_to_srt(video_path=params['video_path'],output_dir=params['output_dir'])
         # print(data)
         return data
     elif request.method == "POST":
