@@ -12,8 +12,7 @@ from crawler.get_rsslink import get_rss_link
 from crawler.get_subgroupinfo import get_subgroup_info
 from flask_cors import CORS
 from utils.fun_config import update_used_rule, request_rule_msg, get_rule_config, get_rule_info, add_edit_rule, \
-    delete_rule, load_json
-
+    delete_rule, load_json, add_edit_ai_config, delete_ai_config
 
 app = Flask(__name__)
 CORS(app)  # 允许所有跨域请求
@@ -401,6 +400,36 @@ def submit_aiSubtitle():
             "error": "处理请求时发生错误",
             "detail": str(e)
         }), 500
+
+# 新增或修改 AI 配置
+@app.route("/addEditAiConfig", methods=["POST"])
+def submit_addeditaiconfig():
+    if request.method == "POST":
+        data = request.json
+        if add_edit_ai_config(data):
+            return jsonify({"code": 200, "msg": "success", "data": None})
+        else:
+            return jsonify({"code": 400, "msg": "error", "data": "缺少关键信息或配置项无效"})
+    else:
+        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+
+# 删除 AI 配置
+@app.route("/deleteAiConfig", methods=["POST"])
+def submit_deleteaiconfig():
+    if request.method == "POST":
+        data = request.json
+        key = data.get("key")
+        if key:
+            if delete_ai_config(key):
+                return jsonify({"code": 200, "msg": "success", "data": None})
+            else:
+                return jsonify({"code": 404, "msg": "error", "data": "配置项不存在"})
+        else:
+            return jsonify({"code": 400, "msg": "error", "data": "缺少配置项名称"})
+    else:
+        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+
+
 
 if __name__ == "__main__":
     fun_request.global_cookie = login({

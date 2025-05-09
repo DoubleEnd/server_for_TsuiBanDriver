@@ -3,6 +3,7 @@ import json
 rule_config_path = 'assets/rule_config.json'
 rule_info_path = 'assets/rule_info.json'
 url_config_path = 'assets/url_config.json'
+ai_config_path = 'assets/ai_config.json'
 
 # 读取规则配置文件
 def load_json(file_path):
@@ -110,3 +111,23 @@ def delete_rule(rule_name):
     save_json(rule_info_path, rule_info)
 
     return is_exist
+
+# 新增或修改 AI 配置
+def add_edit_ai_config(data):
+    ai_config = load_json(ai_config_path)
+    key = data.get("ai_config_key")
+    value = data.get("ai_config_value")
+    if key and value:
+        ai_config[key] = value
+        save_json(ai_config_path, ai_config)
+        return True
+    return False
+
+# 删除 AI 配置
+def delete_ai_config(key):
+    ai_config = load_json(ai_config_path)
+    if key in ai_config:
+        del ai_config[key]
+        save_json(ai_config_path, ai_config)
+        return True
+    return False
