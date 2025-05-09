@@ -2,7 +2,7 @@ import json
 
 from flask import Flask, request, jsonify
 
-from ai.ai import transcribe_audio_to_srt
+from ai.ai import transcribe_audio_to_srt, get_ai_config
 from api.api_dandanPlay import welcome, bangumi, bangumiList, getSubtitle, library
 from utils import fun_request
 from crawler.get_info import get_info_list
@@ -354,17 +354,53 @@ def submit_getSubtitle():
     elif request.method == "POST":
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 
+# 获取ai模型和设备配置
+@app.route("/aiConfig", methods=["GET"])
+def get_ai_configuration():
+    try:
+        ai_config = get_ai_config()
+        return jsonify({
+            "valid_models": ai_config.get("valid_models", []),
+            "valid_devices": ai_config.get("valid_devices", []),
+            "default_model": "medium",
+            "default_device": "cpu"
+        })
+    except Exception as e:
+        return jsonify({
+            "error": "获取配置失败",
+            "detail": str(e)
+        }), 500
+
 # AI生成字幕
-@app.route("/aiSubtitle", methods=["GET", "POST"])
+@app.route("/aiSubtitle", methods=["GET"])
 def submit_aiSubtitle():
-    if request.method == "GET":
+    try:
         params = request.args.to_dict()
-        # print(params)
-        data = transcribe_audio_to_srt(video_path=params['video_path'],output_dir=params['output_dir'])
-        # print(data)
-        return data
-    elif request.method == "POST":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+        if 'video_path' not in params:
+            return jsonify({"error": "缺少video_path参数"}), 400
+
+        # 从配置获取默认值
+        ai_config = get_ai_config()
+        model_type = params.get('model_type',
+            ai_config.get("default_model", "medium"))
+        device = params.get('device',
+            ai_config.get("default_device", "cpu")).lower()
+
+        srt_path = transcribe_audio_to_srt(
+            video_path=params['video_path'],
+            model_type=model_type,
+            device=device
+        )
+        return jsonify({
+            "srt_path": srt_path,
+            "model_used": model_type,
+            "device_used": device
+        })
+    except Exception as e:
+        return jsonify({
+            "error": "处理请求时发生错误",
+            "detail": str(e)
+        }), 500
 
 if __name__ == "__main__":
     fun_request.global_cookie = login({
@@ -372,4 +408,4 @@ if __name__ == "__main__":
         'password': '123456'
     }, )
     app.run(host="0.0.0.0", debug=True)
-    # app.run(host="0.0.0.0")
+

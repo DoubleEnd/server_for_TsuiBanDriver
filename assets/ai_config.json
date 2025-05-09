@@ -1,0 +1,6 @@
+{
+    "valid_models" : ["tiny", "small", "medium"],
+    "valid_devices" : ["cpu", "gpu"],
+    "default_model" : "medium",
+    "default_device" : "cpu"
+}

@@ -1,25 +1,45 @@
 import whisper
 import os
 import subprocess
-import re
 from whisper.utils import WriteSRT
+import torch    #验证是否有可用的gpu
+from utils.fun_config import load_json
 
+output_dir = r"E:\ai"
 
-def transcribe_audio_to_srt(video_path, output_dir):
-    """
-    转录音频文件并保存为 SRT 字幕文件
+# 加载AI配置项
+def get_ai_config():
+    try:
+        return load_json('assets/ai_config.json')
+    except FileNotFoundError:
+        return {
+            "valid_models": ["tiny", "small", "medium"],
+            "valid_devices": ["cpu", "gpu"]
+        }
 
-    :param video_path: 视频文件路径
-    :param output_dir: 输出目录
-    :return: 生成的 SRT 文件路径
-    """
-    # 清理文件名：移除特殊字符，用下划线替代空格
+# 生成字幕
+def transcribe_audio_to_srt(video_path, model_type="medium", device="cpu"):
+    ai_config = get_ai_config()
+    valid_models = ai_config.get("valid_models", [])
+    valid_devices = ai_config.get("valid_devices", [])
+
+    # 参数验证
+    if model_type not in valid_models:
+        raise ValueError(f"无效的模型类型，可选值：{', '.join(valid_models)}")
+
+    # 设备处理逻辑
+    if device.lower() == "gpu":
+        device = "cuda"
+    if device not in valid_devices:
+        raise ValueError(f"无效的设备类型，可选值：{', '.join(valid_devices)}")
+    if device == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("请求使用GPU但CUDA不可用")
+
+    # 获取视频文件名
     video_name = os.path.splitext(os.path.basename(video_path))[0]
-    video_name = re.sub(r'[^\w\s-]', '', video_name)  # 移除非字母数字、下划线、短横线、空格的字符
-    video_name = re.sub(r'[\s_-]+', '_', video_name)  # 将连续空格/短横线替换为单个下划线
 
     # 生成音频路径和SRT路径
-    audio_path = os.path.join(output_dir, f"{video_name}.wav")  # 音频文件存到输出目录
+    audio_path = os.path.join(output_dir, f"{video_name}.wav")
     output_srt_path = os.path.join(output_dir, f"{video_name}.srt")
 
     # 确保输出目录存在
@@ -44,21 +64,21 @@ def transcribe_audio_to_srt(video_path, output_dir):
             print(f"音频提取失败：{e}")
             return None
 
-    # 加载模型
-    model = whisper.load_model("medium", device="cpu")
+    try:
+        model = whisper.load_model(model_type, device=device)
+        result = model.transcribe(audio_path)
+        writer = WriteSRT(output_dir)
+        writer(result, audio_path)
 
-    # 语音识别
-    result = model.transcribe(audio_path)
+        try:
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+                print(f"已清理临时音频文件：{audio_path}")
+            else:
+                print(f"无需清理，音频文件不存在：{audio_path}")
+        except Exception as clean_error:
+            print(f"音频文件清理失败：{str(clean_error)}")
+        return output_srt_path
 
-    # 生成SRT文件
-    writer = WriteSRT(output_dir)  # 修正：传入输出目录而不是完整路径
-    writer(result, audio_path)  # 自动生成文件名
-
-    print(f"SRT 文件已生成: {output_srt_path}")
-    return output_srt_path
-
-
-if __name__ == "__main__":
-    video_path = r"E:\ai\[ANi] Lycoris Recoil 莉可麗絲：友誼是時間的竊賊 - 01 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4"
-    output_dir = r"E:\ai"
-    srt_file_path = transcribe_audio_to_srt(video_path, output_dir)
+    except Exception as e:
+        raise RuntimeError(str(e))
