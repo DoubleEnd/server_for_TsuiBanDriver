@@ -5,10 +5,9 @@ from whisper.utils import WriteSRT
 import torch    #验证是否有可用的gpu
 from utils.fun_config import load_json
 
-output_dir = r"E:\ai"
-
 # 加载AI配置项
 def get_ai_config():
+    # print("加载AI配置项")
     try:
         return load_json('assets/ai_config.json')
     except FileNotFoundError:
@@ -19,19 +18,25 @@ def get_ai_config():
 
 # 生成字幕
 def transcribe_audio_to_srt(video_path, model_type="medium", device="cpu"):
+    # print("开始运行" , video_path ,"路径")
+    last_slash_index = video_path.rfind("\\")
+    # print(last_slash_index,"last_slash_index")
+    # 使用切片获取最后一个斜杠之前的部分
+    output_dir = video_path[:last_slash_index + 1]
+    # print(output_dir,"output_dir")
     ai_config = get_ai_config()
-    valid_models = ai_config.get("valid_models", [])
-    valid_devices = ai_config.get("valid_devices", [])
+    valid_models = ai_config.get("default_model", [])
+    valid_devices = ai_config.get("default_device", [])
 
     # 参数验证
     if model_type not in valid_models:
         raise ValueError(f"无效的模型类型，可选值：{', '.join(valid_models)}")
 
     # 设备处理逻辑
-    if device.lower() == "gpu":
-        device = "cuda"
     if device not in valid_devices:
         raise ValueError(f"无效的设备类型，可选值：{', '.join(valid_devices)}")
+    if device.lower() == "gpu":
+        device = "cuda"
     if device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("请求使用GPU但CUDA不可用")
 

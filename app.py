@@ -361,8 +361,8 @@ def get_ai_configuration():
         return jsonify({
             "valid_models": ai_config.get("valid_models", []),
             "valid_devices": ai_config.get("valid_devices", []),
-            "default_model": "medium",
-            "default_device": "cpu"
+            "default_model": ai_config.get("default_model"),
+            "default_device": ai_config.get("default_device")
         })
     except Exception as e:
         return jsonify({
@@ -384,7 +384,6 @@ def submit_aiSubtitle():
             ai_config.get("default_model", "medium"))
         device = params.get('device',
             ai_config.get("default_device", "cpu")).lower()
-
         srt_path = transcribe_audio_to_srt(
             video_path=params['video_path'],
             model_type=model_type,
