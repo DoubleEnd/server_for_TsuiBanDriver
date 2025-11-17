@@ -10,6 +10,7 @@ from crawler.get_info import get_info_list
 from api.api_qBittorrent import login, get_everything, post_everything, set_rule, get_version, get_webapiVersion
 from crawler.get_rsslink import get_rss_link
 from crawler.get_subgroupinfo import get_subgroup_info
+from crawler.get_subtitle import get_subtitle_list
 from flask_cors import CORS
 from utils.fun_config import update_used_rule, request_rule_msg, get_rule_config, get_rule_info, add_edit_rule, \
     delete_rule, load_json, add_edit_ai_config, delete_ai_config
@@ -350,6 +351,51 @@ def submit_getSubtitle():
         data = getSubtitle(params=params['videoId'])
         # print(data)
         return data
+    elif request.method == "POST":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
+
+# 获取字幕列表
+@app.route("/getSubtitleList", methods=["GET", "POST"])
+def submit_getSubtitleList():
+    if request.method == "GET":
+        params = request.args.to_dict()
+        if 'videoId' not in params:
+            return jsonify({"error": "缺少videoId参数"}), 400
+        result = get_subtitle_list(videoId=params['videoId'])
+        if result is None:
+            return jsonify({"code": 500, "msg": "error", "data": None})
+
+        # 提取最多两个字幕的 title 列表，仅返回标题（不包含 href）
+        titles = [item.get('title') for item in result if item.get('title')]
+        titles = titles[:2]
+        code = 200 if titles else 404
+        msg = "success" if code == 200 else "error"
+        return jsonify({"code": code, "msg": msg, "data": titles})
+    elif request.method == "POST":
+        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
+
+# 设置字幕（访问 video 页面并带上 subtitle 参数），返回布尔结果
+@app.route("/setSubtitle", methods=["GET", "POST"])
+def submit_setSubtitle():
+    if request.method == "GET":
+        params = request.args.to_dict()
+        if 'videoId' not in params or 'subtitle' not in params:
+            return jsonify({"error": "缺少videoId或subtitle参数"}), 400
+        try:
+            # 传入的 subtitle 仅为文件名字符串，直接放到 subtitle 参数中（无需中间赋值）
+            resp = fun_request.api_dandanPlay_request({
+                "url": "/web1/video.html",
+                "method": "get",
+                "params": {"id": params['videoId'], "subtitle": params['subtitle']}
+            })
+            success = resp is not None and resp.status_code == 200
+            return jsonify({"code": 200 if success else 500, "msg": "success" if success else "error", "data": success})
+        except Exception as e:
+            print(f"setSubtitle 请求出错: {e}")
+            return jsonify({"code": 500, "msg": "error", "data": False})
+
     elif request.method == "POST":
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 
