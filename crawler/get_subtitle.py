@@ -1,9 +1,8 @@
 import requests
 from lxml import etree
 from utils.fun_config import get_url_config
-from urllib.parse import urljoin
+from utils.fun_request import get_request_config
 
-# dandanPlay_BASE_URL = 'http://100.65.133.102:8888'
 dandanPlay_BASE_URL = get_url_config()['dandanPlay_BASE_URL']
 
 
@@ -18,7 +17,9 @@ def get_subtitle_list(videoId):
     """
     try:
         url = f"{dandanPlay_BASE_URL}/web1/video.html?id={videoId}"
-        response = requests.get(url)
+        # dandanPlay 是局域网连接，不使用代理，但使用搜索配置中的请求头
+        request_config = get_request_config(use_proxy=False)
+        response = requests.get(url, headers=request_config['headers'])
         response.raise_for_status()
 
         html = etree.HTML(response.content)

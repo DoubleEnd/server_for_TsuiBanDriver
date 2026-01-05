@@ -1,12 +1,15 @@
 import json
+import logging
 
 import requests
 import xmltodict
 from lxml import etree
 from utils.fun_config import match_rule
+from utils.fun_request import request, get_request_config
+
+logger = logging.getLogger(__name__)
 
 
-header = {"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"}
 #获取id列表
 def get_info_list(banguminame):
     rule = match_rule()
@@ -18,6 +21,7 @@ def get_info_list(banguminame):
         rss_suffix = rule["rss_suffix"]
 
         rss_url = f"{base_url}{rss_path}{query_params_bangumi_name}{banguminame}{rss_suffix}"
+        logger.info(f"[get_info_list] 搜索URL: {rss_url}")
         # print(rss_url)
 
         if "home_path" in rule:
@@ -32,15 +36,31 @@ def get_info_list(banguminame):
         return data
 
     except requests.exceptions.RequestException as e:
-        print(f"请求出错: {e}")
+        logger.error(f"[get_info_list] 网络请求出错: {e}")
         return None  # 在请求出错时返回 None
     except Exception as e:
-        print(f"解析出错: {e}")
+        logger.error(f"[get_info_list] 解析出错: {e}")
         return None  # 在解析出错时返回 None
 
 def getRssList(rss_url):
-    response_rss = requests.get(rss_url,headers=header)
-    response_rss.raise_for_status()
+    logger.info(f"[getRssList] 获取RSS列表: {rss_url}")
+    # 使用搜索配置中的请求头和代理
+    request_config = get_request_config(use_proxy=True)
+    
+    try:
+        response_rss = requests.get(rss_url, headers=request_config['headers'], proxies=request_config['proxies'], timeout=10)
+        response_rss.raise_for_status()
+        logger.info(f"[getRssList] 成功获取RSS (状态码: {response_rss.status_code})")
+    except requests.exceptions.ProxyError as e:
+        logger.error(f"[getRssList] 代理连接失败: {e}")
+        raise
+    except requests.exceptions.Timeout as e:
+        logger.error(f"[getRssList] 请求超时: {e}")
+        raise
+    except requests.exceptions.RequestException as e:
+        logger.error(f"[getRssList] 网络请求出错: {e}")
+        raise
+    
     xml_content = response_rss.text
     # 将 XML 转换为 JSON
     convertJson = xmltodict.parse(xml_content, encoding='utf-8')
@@ -48,6 +68,7 @@ def getRssList(rss_url):
     return jsonStr
 
 def getBangumiItem(url,base_url,rss_url,rule):
+    logger.info(f"[getBangumiItem] 获取番剧列表: {url}")
     xpath_bangumi_list_item = rule["xpath_bangumi_list_item"]
     xpath_bangumi_id_href = rule["xpath_bangumi_id_href"]
     xpath_bangumi_img = rule["xpath_bangumi_img"]
@@ -55,19 +76,30 @@ def getBangumiItem(url,base_url,rss_url,rule):
 
     bangumiItem = []
 
-    response = requests.get(url,headers=header)
-    response.raise_for_status()
+    # 使用搜索配置中的请求头和代理
+    request_config = get_request_config(use_proxy=True)
+    try:
+        response = requests.get(url, headers=request_config['headers'], proxies=request_config['proxies'], timeout=10)
+        response.raise_for_status()
+        logger.info(f"[getBangumiItem] 成功获取番剧列表 (状态码: {response.status_code})")
+    except requests.exceptions.ProxyError as e:
+        logger.error(f"[getBangumiItem] 代理连接失败: {e}")
+        raise
+    except requests.exceptions.Timeout as e:
+        logger.error(f"[getBangumiItem] 请求超时: {e}")
+        raise
+    except requests.exceptions.RequestException as e:
+        logger.error(f"[getBangumiItem] 网络请求出错: {e}")
+        raise
 
     html = etree.HTML(response.content)
     id_list = html.xpath(xpath_bangumi_list_item)
+    logger.info(f"[getBangumiItem] 找到 {len(id_list)} 个番剧项目")
+    
     for i in id_list:
-        # print(etree.tostring(i, encoding='utf-8').decode('utf-8'))
         bangumiId_element = i.xpath(xpath_bangumi_id_href)
         img_element = i.xpath(xpath_bangumi_img)
         title_element = i.xpath(xpath_bangumi_title)
-        # for j in bangumiId_element:
-        #     print(etree.tostring(j, encoding='utf-8').decode('utf-8'))
-        # print(bangumiId_element)
 
         url_part = img_element[0]  # 先通过 url( 分割，取第二个部分
         image_path = url_part.split('?')[0]  # 再通过 ? 分割，取第一个部分
@@ -79,14 +111,3 @@ def getBangumiItem(url,base_url,rss_url,rule):
         })
     return bangumiItem
 
-# if __name__ == "__main__":
-#     try:
-#         result = get_info_list(banguminame="进击的巨人")
-#         if result is None:
-#             sendInfo = {"code": 500, "msg": False, "data": "网络请求失败"}
-#         else:
-#             sendInfo = {"code": 200, "msg": "success", "data": result}
-#     except Exception as e:
-#         print(f"未知错误: {e}")
-#         sendInfo = {"code": 500, "msg": False, "data": "未知错误"}
-#     print(sendInfo)

@@ -16,10 +16,3 @@ def get_rss_link(bangumiId, subgroupid):
     }
 
     return addFeed(data)
-
-# if __name__ == '__main__':
-#     fun_request.global_cookie = login({
-#         'username': 'admin',
-#         'password': '123456'
-#     }, )
-#     get_rss_link("命运石之门", "1")

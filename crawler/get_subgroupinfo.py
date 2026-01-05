@@ -2,6 +2,7 @@ import requests
 from lxml import etree
 
 from utils.fun_config import match_rule
+from utils.fun_request import get_request_config
 
 
 def get_subgroup_info(bangumiId):
@@ -16,7 +17,9 @@ def get_subgroup_info(bangumiId):
 
         url = f"{base_url}{home_path}{bangumi_path}{bangumiId}"
 
-        response = requests.get(url)
+        # 使用搜索配置中的请求头和代理
+        request_config = get_request_config(use_proxy=True)
+        response = requests.get(url, headers=request_config['headers'], proxies=request_config['proxies'])
         response.raise_for_status()
 
         # 使用 lxml 解析网页内容
@@ -42,16 +45,3 @@ def get_subgroup_info(bangumiId):
     except Exception as e:
         print(f"解析出错: {e}")
         return None  # 在解析出错时返回 None
-
-# if __name__ == "__main__":
-#     try:
-#         result = get_subgroup_info(bangumiId="1678")
-#         if result is None:
-#             sendInfo = {"code": 500, "msg": False, "data": "网络请求失败"}
-#         else:
-#             sendInfo = {"code": 200, "msg": "success", "data": result}
-#     except Exception as e:
-#         print(f"未知错误: {e}")
-#         sendInfo = {"code": 500, "msg": False, "data": "未知错误"}
-#
-#     print(sendInfo)

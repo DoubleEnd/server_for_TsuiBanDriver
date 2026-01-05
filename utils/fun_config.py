@@ -4,6 +4,7 @@ rule_config_path = 'assets/rule_config.json'
 rule_info_path = 'assets/rule_info.json'
 url_config_path = 'assets/url_config.json'
 ai_config_path = 'assets/ai_config.json'
+search_config_path = 'assets/search_config.json'
 
 # 读取规则配置文件
 def load_json(file_path):
@@ -131,3 +132,35 @@ def delete_ai_config(key):
         save_json(ai_config_path, ai_config)
         return True
     return False
+
+# 获取搜索配置
+def get_search_config():
+    try:
+        search_config = load_json(search_config_path)
+        # 确保 proxy_protocol 字段存在，默认为 'http'
+        if 'proxy_protocol' not in search_config:
+            search_config['proxy_protocol'] = 'http'
+        return search_config
+    except:
+        return {
+            "search_header": "",
+            "proxy_enabled": False,
+            "proxy_protocol": "http",
+            "proxy_host": "",
+            "proxy_port": ""
+        }
+
+# 保存搜索配置
+def save_search_config(data):
+    try:
+        search_config = {
+            "search_header": data.get("search_header", ""),
+            "proxy_enabled": data.get("proxy_enabled", False),
+            "proxy_protocol": data.get("proxy_protocol", "http"),
+            "proxy_host": data.get("proxy_host", ""),
+            "proxy_port": data.get("proxy_port", "")
+        }
+        save_json(search_config_path, search_config)
+        return True
+    except:
+        return False
