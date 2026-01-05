@@ -6,9 +6,45 @@ from utils.fun_config import get_url_config, get_search_config
 # 禁用 SSL 证书验证警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-global_cookie = ''
-qBittorrent_BASE_URL = get_url_config()['qBittorrent_BASE_URL']
-dandanPlay_BASE_URL = get_url_config()['dandanPlay_BASE_URL']
+# 用于缓存登录 cookie
+_qb_cookie_cache = None
+
+
+def get_qb_cookie():
+    """获取 qBittorrent 登录 cookie，如果已缓存则返回缓存"""
+    global _qb_cookie_cache
+    if _qb_cookie_cache:
+        return _qb_cookie_cache
+    
+    # 需要时才进行登录
+    from api.api_qBittorrent import login
+    url_config = get_url_config()
+    try:
+        cookie = login({
+            'username': url_config.get('qBittorrent_username', 'admin'),
+            'password': url_config.get('qBittorrent_password', '123456')
+        })
+        _qb_cookie_cache = cookie
+        return cookie
+    except Exception as e:
+        print(f"qBittorrent 登录失败: {e}")
+        return ''
+
+
+def clear_qb_cookie_cache():
+    """清除 qBittorrent cookie 缓存"""
+    global _qb_cookie_cache
+    _qb_cookie_cache = None
+
+
+def get_qBittorrent_BASE_URL():
+    """动态获取 qBittorrent BASE URL"""
+    return get_url_config()['qBittorrent_BASE_URL']
+
+
+def get_dandanPlay_BASE_URL():
+    """动态获取 dandanPlay BASE URL"""
+    return get_url_config()['dandanPlay_BASE_URL']
 
 
 def get_request_config(use_proxy=True):
@@ -51,13 +87,18 @@ def get_request_config(use_proxy=True):
 
 def api_qBittorrent_request(config):
     """qBittorrent 请求（不使用代理）"""
-    url = qBittorrent_BASE_URL + config.get('url', '')
-    return request(config, url, use_proxy=False)
+    url = get_qBittorrent_BASE_URL() + config.get('url', '')
+    cookie = get_qb_cookie()
+    # 将 cookie 临时添加到 config 中
+    original_cookie = config.get('cookie', '')
+    config['cookie'] = cookie
+    result = request(config, url, use_proxy=False)
+    config['cookie'] = original_cookie
+    return result
 
 def api_dandanPlay_request(config):
     """dandanPlay 请求（不使用代理）"""
-    url = dandanPlay_BASE_URL + config.get('url', '')
-    # print(url)
+    url = get_dandanPlay_BASE_URL() + config.get('url', '')
     return request(config, url, use_proxy=False)
 
 
@@ -73,6 +114,7 @@ def request(config, url, use_proxy=True):
     params = config.get('params', {})
     headers = config.get('headers', {})
     data = config.get('data', {})
+    cookie = config.get('cookie', '')
     
     # 获取搜索配置中的请求设置
     search_request_config = get_request_config(use_proxy=use_proxy)
@@ -96,15 +138,15 @@ def request(config, url, use_proxy=True):
 
     try:
         if method == 'GET':
-            response = requests.get(url, params=params, cookies=global_cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
+            response = requests.get(url, params=params, cookies=cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
         elif method == 'POST':
-            response = requests.post(url, params=params, data=data, cookies=global_cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
+            response = requests.post(url, params=params, data=data, cookies=cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
         elif method == 'PUT':
-            response = requests.put(url, params=params, data=data, cookies=global_cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
+            response = requests.put(url, params=params, data=data, cookies=cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
         elif method == 'DELETE':
-            response = requests.delete(url, params=params, cookies=global_cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
+            response = requests.delete(url, params=params, cookies=cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
         elif method == 'HEAD':
-            response = requests.head(url, params=params, cookies=global_cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
+            response = requests.head(url, params=params, cookies=cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
         else:
             raise ValueError(f"该请求方式: {method} 不被支持")
 

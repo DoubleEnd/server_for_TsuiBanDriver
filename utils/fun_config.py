@@ -13,7 +13,22 @@ def load_json(file_path):
 
 def get_url_config():
     url_config = load_json(url_config_path)
-    return url_config
+    # 兼容旧格式并构建新格式
+    qb_host = url_config.get('qBittorrent_host', '192.168.10.37')
+    qb_port = url_config.get('qBittorrent_port', '8080')
+    ddp_host = url_config.get('dandanPlay_host', '192.168.10.37')
+    ddp_port = url_config.get('dandanPlay_port', '8888')
+    
+    return {
+        'qBittorrent_BASE_URL': f"http://{qb_host}:{qb_port}/api/v2/",
+        'dandanPlay_BASE_URL': f"http://{ddp_host}:{ddp_port}",
+        'qBittorrent_host': qb_host,
+        'qBittorrent_port': qb_port,
+        'qBittorrent_username': url_config.get('qBittorrent_username', 'admin'),
+        'qBittorrent_password': url_config.get('qBittorrent_password', '123456'),
+        'dandanPlay_host': ddp_host,
+        'dandanPlay_port': ddp_port
+    }
 
 # 获取规则配置文件
 def get_rule_config():
@@ -161,6 +176,45 @@ def save_search_config(data):
             "proxy_port": data.get("proxy_port", "")
         }
         save_json(search_config_path, search_config)
+        return True
+    except:
+        return False
+
+# 获取URL配置
+def get_url_config_all():
+    try:
+        url_config = load_json(url_config_path)
+        # 兼容旧格式
+        return {
+            "qBittorrent_host": url_config.get("qBittorrent_host", "192.168.10.37"),
+            "qBittorrent_port": url_config.get("qBittorrent_port", "8080"),
+            "qBittorrent_username": url_config.get("qBittorrent_username", "admin"),
+            "qBittorrent_password": url_config.get("qBittorrent_password", "123456"),
+            "dandanPlay_host": url_config.get("dandanPlay_host", "192.168.10.37"),
+            "dandanPlay_port": url_config.get("dandanPlay_port", "8888")
+        }
+    except:
+        return {
+            "qBittorrent_host": "192.168.10.37",
+            "qBittorrent_port": "8080",
+            "qBittorrent_username": "admin",
+            "qBittorrent_password": "123456",
+            "dandanPlay_host": "192.168.10.37",
+            "dandanPlay_port": "8888"
+        }
+
+# 保存URL配置
+def save_url_config(data):
+    try:
+        url_config = {
+            "qBittorrent_host": data.get("qBittorrent_host", "192.168.10.37"),
+            "qBittorrent_port": data.get("qBittorrent_port", "8080"),
+            "qBittorrent_username": data.get("qBittorrent_username", "admin"),
+            "qBittorrent_password": data.get("qBittorrent_password", "123456"),
+            "dandanPlay_host": data.get("dandanPlay_host", "192.168.10.37"),
+            "dandanPlay_port": data.get("dandanPlay_port", "8888")
+        }
+        save_json(url_config_path, url_config)
         return True
     except:
         return False

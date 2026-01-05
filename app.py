@@ -578,10 +578,154 @@ def submit_testproxy():
         return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
 
 
+# 获取后端版本信息
+@app.route("/getBackendVersions", methods=["GET"])
+def submit_getbackendversions():
+    try:
+        versions = {
+            "qBittorrent": "",
+            "qBittorrentWebApi": "",
+            "dandanPlay": "",
+        }
+        
+        # 获取 qBittorrent 版本
+        try:
+            qb_res = get_version(data='')
+            if qb_res.status_code == 200:
+                versions["qBittorrent"] = qb_res.text
+        except Exception as e:
+            logger.warning(f"[getBackendVersions] 获取qBittorrent版本失败: {str(e)}")
+        
+        # 获取 qBittorrent WebAPI 版本
+        try:
+            webapi_res = get_webapiVersion(data='')
+            if webapi_res.status_code == 200:
+                versions["qBittorrentWebApi"] = webapi_res.text
+        except Exception as e:
+            logger.warning(f"[getBackendVersions] 获取WebAPI版本失败: {str(e)}")
+        
+        # 获取 dandanPlay 版本
+        try:
+            dandan_res = welcome(params='')
+            if dandan_res.status_code == 200:
+                versions["dandanPlay"] = dandan_res.json().get('version', '')
+        except Exception as e:
+            logger.warning(f"[getBackendVersions] 获取dandanPlay版本失败: {str(e)}")
+        
+        return jsonify({"code": 200, "msg": "success", "data": versions})
+    except Exception as e:
+        logger.error(f"[getBackendVersions] 异常错误: {str(e)}", exc_info=True)
+        return jsonify({"code": 500, "msg": "error", "data": None}), 500
+
+
+# 获取URL配置
+@app.route("/getUrlConfig", methods=["GET"])
+def submit_geturlconfig():
+    from utils.fun_config import get_url_config_all
+    try:
+        config = get_url_config_all()
+        return jsonify({"code": 200, "msg": "success", "data": config})
+    except Exception as e:
+        logger.error(f"[getUrlConfig] 异常错误: {str(e)}", exc_info=True)
+        return jsonify({"code": 500, "msg": "error", "data": None}), 500
+
+
+# 测试后端服务连接
+@app.route("/testBackendConnection", methods=["POST"])
+def test_backend_connection():
+    if request.method == "POST":
+        try:
+            data = request.json
+            service_type = data.get('type')  # 'qBittorrent' 或 'dandanPlay'
+            
+            if service_type == 'qBittorrent':
+                # 测试 qBittorrent 连接
+                from api.api_qBittorrent import login
+                host = data.get('host', '')
+                port = data.get('port', '')
+                username = data.get('username', 'admin')
+                password = data.get('password', '123456')
+                
+                if not host or not port:
+                    return jsonify({"code": 400, "msg": "缺少必要参数"}), 400
+                
+                # 构造临时URL
+                temp_base_url = f"http://{host}:{port}/api/v2/"
+                
+                # 尝试登录
+                import requests
+                try:
+                    response = requests.post(
+                        f"{temp_base_url}auth/login",
+                        data={'username': username, 'password': password},
+                        timeout=10
+                    )
+                    if response.status_code == 200 and response.text == 'Ok.':
+                        logger.info(f"[testBackendConnection] qBittorrent 连接测试成功: {host}:{port}")
+                        return jsonify({"code": 200, "msg": "连接成功"})
+                    else:
+                        logger.warning(f"[testBackendConnection] qBittorrent 登录失败: {response.text}")
+                        return jsonify({"code": 500, "msg": "登录失败，请检查用户名和密码"}), 500
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"[testBackendConnection] qBittorrent 连接失败: {str(e)}")
+                    return jsonify({"code": 500, "msg": f"连接失败: {str(e)}"}), 500
+                    
+            elif service_type == 'dandanPlay':
+                # 测试 dandanPlay 连接
+                from api.api_dandanPlay import welcome
+                host = data.get('host', '')
+                port = data.get('port', '')
+                
+                if not host or not port:
+                    return jsonify({"code": 400, "msg": "缺少必要参数"}), 400
+                
+                # 构造临时URL
+                temp_base_url = f"http://{host}:{port}"
+                
+                # 尝试连接
+                import requests
+                try:
+                    response = requests.get(f"{temp_base_url}/api/v1/welcome", timeout=10)
+                    if response.status_code == 200:
+                        logger.info(f"[testBackendConnection] dandanPlay 连接测试成功: {host}:{port}")
+                        return jsonify({"code": 200, "msg": "连接成功"})
+                    else:
+                        logger.warning(f"[testBackendConnection] dandanPlay 连接失败: status={response.status_code}")
+                        return jsonify({"code": 500, "msg": f"连接失败: HTTP {response.status_code}"}), 500
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"[testBackendConnection] dandanPlay 连接失败: {str(e)}")
+                    return jsonify({"code": 500, "msg": f"连接失败: {str(e)}"}), 500
+            else:
+                return jsonify({"code": 400, "msg": "未知的服务类型"}), 400
+                
+        except Exception as e:
+            logger.error(f"[testBackendConnection] 异常错误: {str(e)}", exc_info=True)
+            return jsonify({"code": 500, "msg": f"测试失败: {str(e)}"}), 500
+
+
+# 保存URL配置
+@app.route("/saveUrlConfig", methods=["POST"])
+def submit_saveurlconfig():
+    from utils.fun_config import save_url_config
+    if request.method == "POST":
+        try:
+            data = request.json
+            if save_url_config(data):
+                # 清除 qBittorrent cookie 缓存，下次访问时会用新的账号密码登录
+                fun_request.clear_qb_cookie_cache()
+                logger.info(f"[saveUrlConfig] 成功保存URL配置")
+                return jsonify({"code": 200, "msg": "success"})
+            else:
+                logger.warning(f"[saveUrlConfig] 保存失败")
+                return jsonify({"code": 500, "msg": "error"}), 500
+        except Exception as e:
+            logger.error(f"[saveUrlConfig] 异常错误: {str(e)}", exc_info=True)
+            return jsonify({"code": 500, "msg": "error"}), 500
+    else:
+        return jsonify({"code": 405, "msg": "请求方法不被允许"}), 405
+
+
 if __name__ == "__main__":
-    fun_request.global_cookie = login({
-        'username': 'admin',
-        'password': '123456'
-    }, )
+    logger.info("[启动] 启动应用服务器...")
     app.run(host="0.0.0.0", debug=True)
 
