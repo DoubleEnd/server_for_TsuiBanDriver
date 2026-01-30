@@ -1,3 +1,4 @@
+from urllib.parse import urljoin
 import requests
 from lxml import etree
 from utils.fun_config import get_url_config
@@ -26,7 +27,7 @@ def get_subtitle_list(videoId):
 
         # 定位包含“字幕列表”卡片的区域，并在其范围内找所有链接
         anchors = html.xpath(
-            "//div[contains(@class,'card')][.//div[@class='card-header' and normalize-space(text())='字幕列表']]//a"
+            "//*[@id='subtitlePanel']/div/div//a"
         )
 
         result = []

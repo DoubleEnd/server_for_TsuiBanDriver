@@ -1,18 +1,18 @@
 import json
-import time
 import logging
+import time
 
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 from ai.ai import transcribe_audio_to_srt, get_ai_config
 from api.api_dandanPlay import welcome, bangumi, bangumiList, getSubtitle, library
-from utils import fun_request
+from api.api_qBittorrent import get_everything, post_everything, set_rule, get_version, get_webapiVersion
 from crawler.get_info import get_info_list
-from api.api_qBittorrent import login, get_everything, post_everything, set_rule, get_version, get_webapiVersion
 from crawler.get_rsslink import get_rss_link
 from crawler.get_subgroupinfo import get_subgroup_info
 from crawler.get_subtitle import get_subtitle_list
-from flask_cors import CORS
+from utils import fun_request
 from utils.fun_config import update_used_rule, request_rule_msg, get_rule_config, get_rule_info, add_edit_rule, \
     delete_rule, load_json, add_edit_ai_config, delete_ai_config, get_search_config, save_search_config
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)  # 允许所有跨域请求
 
+
 # 提供动漫信息，返回选定的动漫id
 @app.route("/searchAllInfo", methods=["GET", "POST"])
 def submit_info():
@@ -33,23 +34,23 @@ def submit_info():
         data = request.json
         banguminame = data.get("name")
         search_config = get_search_config()
-        
+
         # 记录请求信息和代理配置
         logger.info(f"[searchAllInfo] 开始搜索番剧: {banguminame}")
         logger.info(f"[searchAllInfo] 代理设置 - 已启用: {search_config.get('proxy_enabled')}, "
-                   f"协议: {search_config.get('proxy_protocol')}, "
-                   f"主机: {search_config.get('proxy_host')}, 端口: {search_config.get('proxy_port')}")
-        
+                    f"协议: {search_config.get('proxy_protocol')}, "
+                    f"主机: {search_config.get('proxy_host')}, 端口: {search_config.get('proxy_port')}")
+
         try:
             result = get_info_list(banguminame=banguminame)
             code = 500 if result is None else 404 if result == {} else 200
             msg = "success" if code == 200 else "error"
-            
+
             if code == 200:
                 logger.info(f"[searchAllInfo] 成功搜索到番剧: {banguminame}")
             else:
                 logger.warning(f"[searchAllInfo] 搜索失败 - 代码: {code}, 消息: {msg}")
-            
+
             return jsonify({"code": code, "msg": msg, "data": result})
         except Exception as e:
             logger.error(f"[searchAllInfo] 异常错误: {str(e)}", exc_info=True)
@@ -157,12 +158,13 @@ def submit_everything():
     else:
         return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
 
+
 # 发送qBittorrent版本信息和个人信息
 @app.route("/allVersion", methods=["GET", "POST"])
 def submit_allversion():
     if request.method == "GET":
         qb_version = get_version(data='').text
-        webapi_version  = get_webapiVersion(data='').text
+        webapi_version = get_webapiVersion(data='').text
         dandan_play_version = welcome(params='').json()['version']
         # print(dandan_play_version)
         app_info = load_json("assets/app_info.json")
@@ -177,11 +179,13 @@ def submit_allversion():
             "app_info": app_info,
         }
         return jsonify({"code": get_version('').status_code and get_webapiVersion('').status_code,
-                        "msg": "success" if get_version('').status_code and get_webapiVersion('').status_code ==200 else "error",
+                        "msg": "success" if get_version('').status_code and get_webapiVersion(
+                            '').status_code == 200 else "error",
                         "data": data})
 
     elif request.method == "POST":
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
 
 # qBittorrent保存下载规则
 @app.route("/setRule", methods=["GET", "POST"])
@@ -196,6 +200,7 @@ def submit_setrule():
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
 
+
 # 获取规则配置列表
 @app.route("/getRuleList", methods=["GET", "POST"])
 def submit_getrulelist():
@@ -205,6 +210,7 @@ def submit_getrulelist():
 
     elif request.method == "POST    ":
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
 
 # 获取规则信息列表
 @app.route("/getRuleInfoList", methods=["GET", "POST"])
@@ -220,32 +226,34 @@ def submit_getruleinfolist():
 # 匹配下载规则
 @app.route("/matchRule", methods=["GET", "POST"])
 def submit_matchrule():
-        if request.method == "POST":
-            data = request.json
-            if 'rule_name' not in data:
-                return jsonify({"error": "缺少必要的参数 rule_name"}), 400
-            rule_name = data['rule_name']
-            if update_used_rule(rule_name):
-                return jsonify({"code": 200, "msg": "success", "data": request_rule_msg(rule_name)})
-            else:
-                return jsonify({"code": 404, "msg": "error", "data": {"无效的规则名称": rule_name}})
+    if request.method == "POST":
+        data = request.json
+        if 'rule_name' not in data:
+            return jsonify({"error": "缺少必要的参数 rule_name"}), 400
+        rule_name = data['rule_name']
+        if update_used_rule(rule_name):
+            return jsonify({"code": 200, "msg": "success", "data": request_rule_msg(rule_name)})
+        else:
+            return jsonify({"code": 404, "msg": "error", "data": {"无效的规则名称": rule_name}})
 
-        elif request.method == "GET":
-            return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+    elif request.method == "GET":
+        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+
 
 # 新增或编辑下载规则
 @app.route("/addEditRule", methods=["GET", "POST"])
 def submit_addeditrule():
-        if request.method == "POST":
-            data = request.json
-            add_edit_rule(data)
-            if add_edit_rule(data):
-                return jsonify({"code": 200, "msg": "success", "data": None})
-            else:
-                return jsonify({"code": 404, "msg": "error", "data": "新增或修改失败"})
+    if request.method == "POST":
+        data = request.json
+        add_edit_rule(data)
+        if add_edit_rule(data):
+            return jsonify({"code": 200, "msg": "success", "data": None})
+        else:
+            return jsonify({"code": 404, "msg": "error", "data": "新增或修改失败"})
 
-        elif request.method == "GET":
-            return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+    elif request.method == "GET":
+        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+
 
 # 删除下载规则
 @app.route("/deleteRule", methods=["GET", "POST"])
@@ -262,6 +270,7 @@ def submit_deleterule():
             return jsonify({"code": 404, "msg": "error", "data": "规则不存在"})
     elif request.method == "GET":
         return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+
 
 # # 获取dandanPlay欢迎信息
 # @app.route("/welcome", methods=["GET", "POST"])
@@ -284,9 +293,10 @@ def submit_library():
         if data:
             return data.text
         else:
-            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
+            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}), 500
     elif request.method == "POST":
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
 
 # 获取剧集分类
 @app.route("/bangumi", methods=["GET", "POST"])
@@ -298,9 +308,10 @@ def submit_bangumi():
         if result:
             return result.text
         else:
-            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
+            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}), 500
     elif request.method == "POST":
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
 
 # 获取单部番的所有分集
 @app.route("/bangumiList", methods=["GET", "POST"])
@@ -311,9 +322,10 @@ def submit_bangumiList():
         if result:
             return result.text
         else:
-            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}),500
+            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}), 500
     elif request.method == "POST":
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
 
 # 获取字幕
 @app.route("/getSubtitle", methods=["GET", "POST"])
@@ -372,6 +384,7 @@ def submit_setSubtitle():
     elif request.method == "POST":
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 
+
 # 获取ai模型和设备配置
 @app.route("/aiConfig", methods=["GET"])
 def get_ai_configuration():
@@ -389,6 +402,7 @@ def get_ai_configuration():
             "detail": str(e)
         }), 500
 
+
 # AI生成字幕
 @app.route("/aiSubtitle", methods=["GET"])
 def submit_aiSubtitle():
@@ -400,9 +414,9 @@ def submit_aiSubtitle():
         # 从配置获取默认值
         ai_config = get_ai_config()
         model_type = params.get('model_type',
-            ai_config.get("default_model", "medium"))
+                                ai_config.get("default_model", "medium"))
         device = params.get('device',
-            ai_config.get("default_device", "cpu")).lower()
+                            ai_config.get("default_device", "cpu")).lower()
         srt_path = transcribe_audio_to_srt(
             video_path=params['video_path'],
             model_type=model_type,
@@ -419,6 +433,7 @@ def submit_aiSubtitle():
             "detail": str(e)
         }), 500
 
+
 # 新增或修改 AI 配置
 @app.route("/addEditAiConfig", methods=["POST"])
 def submit_addeditaiconfig():
@@ -430,6 +445,7 @@ def submit_addeditaiconfig():
             return jsonify({"code": 400, "msg": "error", "data": "缺少关键信息或配置项无效"})
     else:
         return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+
 
 # 删除 AI 配置
 @app.route("/deleteAiConfig", methods=["POST"])
@@ -478,48 +494,48 @@ def submit_testproxy():
         data = request.json
         proxy_host = data.get("proxy_host", "").strip()
         proxy_port = data.get("proxy_port", "").strip()
-        
+
         if not proxy_host or not proxy_port:
             return jsonify({"code": 400, "msg": "error", "data": "代理主机和端口不能为空"}), 400
-        
+
         logger.info(f"[testProxy] 开始测试代理服务器 - 主机: {proxy_host}, 端口: {proxy_port}")
-        
+
         try:
             import requests
-            
+
             # 获取代理协议（默认为 http）
             proxy_protocol = data.get("proxy_protocol", "http").lower()
-            
+
             # 构建代理URL
             if proxy_protocol == "socks5":
                 proxy_url = f"socks5://{proxy_host}:{proxy_port}"
             else:
                 proxy_url = f"http://{proxy_host}:{proxy_port}"
-            
+
             logger.info(f"[testProxy] 使用协议: {proxy_protocol}, 代理URL: {proxy_url}")
-            
+
             # 构建代理URL
             if proxy_protocol == "socks5":
                 proxy_url = f"socks5://{proxy_host}:{proxy_port}"
             else:
                 proxy_url = f"http://{proxy_host}:{proxy_port}"
-            
+
             logger.info(f"[testProxy] 使用协议: {proxy_protocol}, 代理URL: {proxy_url}")
-            
+
             proxies = {
                 'http': proxy_url,
                 'https': proxy_url
             }
-            
+
             # 测试代理连接，使用一个简单的 GET 请求
             test_url = "http://httpbin.org/delay/0"
             start_time = time.time()
-            
+
             try:
                 response = requests.get(test_url, proxies=proxies, timeout=10)
                 elapsed_time = time.time() - start_time
                 latency = int(elapsed_time * 1000)  # 转换为毫秒
-                
+
                 logger.info(f"[testProxy] 代理连接成功 - 延迟: {latency}ms")
                 return jsonify({
                     "code": 200,
@@ -587,7 +603,7 @@ def submit_getbackendversions():
             "qBittorrentWebApi": "",
             "dandanPlay": "",
         }
-        
+
         # 获取 qBittorrent 版本
         try:
             qb_res = get_version(data='')
@@ -595,7 +611,7 @@ def submit_getbackendversions():
                 versions["qBittorrent"] = qb_res.text
         except Exception as e:
             logger.warning(f"[getBackendVersions] 获取qBittorrent版本失败: {str(e)}")
-        
+
         # 获取 qBittorrent WebAPI 版本
         try:
             webapi_res = get_webapiVersion(data='')
@@ -603,7 +619,7 @@ def submit_getbackendversions():
                 versions["qBittorrentWebApi"] = webapi_res.text
         except Exception as e:
             logger.warning(f"[getBackendVersions] 获取WebAPI版本失败: {str(e)}")
-        
+
         # 获取 dandanPlay 版本
         try:
             dandan_res = welcome(params='')
@@ -611,7 +627,7 @@ def submit_getbackendversions():
                 versions["dandanPlay"] = dandan_res.json().get('version', '')
         except Exception as e:
             logger.warning(f"[getBackendVersions] 获取dandanPlay版本失败: {str(e)}")
-        
+
         return jsonify({"code": 200, "msg": "success", "data": versions})
     except Exception as e:
         logger.error(f"[getBackendVersions] 异常错误: {str(e)}", exc_info=True)
@@ -637,7 +653,7 @@ def test_backend_connection():
         try:
             data = request.json
             service_type = data.get('type')  # 'qBittorrent' 或 'dandanPlay'
-            
+
             if service_type == 'qBittorrent':
                 # 测试 qBittorrent 连接
                 from api.api_qBittorrent import login
@@ -645,13 +661,13 @@ def test_backend_connection():
                 port = data.get('port', '')
                 username = data.get('username', 'admin')
                 password = data.get('password', '123456')
-                
+
                 if not host or not port:
                     return jsonify({"code": 400, "msg": "缺少必要参数"}), 400
-                
+
                 # 构造临时URL
                 temp_base_url = f"http://{host}:{port}/api/v2/"
-                
+
                 # 尝试登录
                 import requests
                 try:
@@ -669,19 +685,19 @@ def test_backend_connection():
                 except requests.exceptions.RequestException as e:
                     logger.error(f"[testBackendConnection] qBittorrent 连接失败: {str(e)}")
                     return jsonify({"code": 500, "msg": f"连接失败: {str(e)}"}), 500
-                    
+
             elif service_type == 'dandanPlay':
                 # 测试 dandanPlay 连接
                 from api.api_dandanPlay import welcome
                 host = data.get('host', '')
                 port = data.get('port', '')
-                
+
                 if not host or not port:
                     return jsonify({"code": 400, "msg": "缺少必要参数"}), 400
-                
+
                 # 构造临时URL
                 temp_base_url = f"http://{host}:{port}"
-                
+
                 # 尝试连接
                 import requests
                 try:
@@ -697,7 +713,7 @@ def test_backend_connection():
                     return jsonify({"code": 500, "msg": f"连接失败: {str(e)}"}), 500
             else:
                 return jsonify({"code": 400, "msg": "未知的服务类型"}), 400
-                
+
         except Exception as e:
             logger.error(f"[testBackendConnection] 异常错误: {str(e)}", exc_info=True)
             return jsonify({"code": 500, "msg": f"测试失败: {str(e)}"}), 500
@@ -728,4 +744,3 @@ def submit_saveurlconfig():
 if __name__ == "__main__":
     logger.info("[启动] 启动应用服务器...")
     app.run(host="0.0.0.0", debug=True)
-
