@@ -351,9 +351,8 @@ def submit_getSubtitleList():
         if result is None:
             return jsonify({"code": 500, "msg": "error", "data": None})
 
-        # 提取最多两个字幕的 title 列表，仅返回标题（不包含 href）
+        # 返回标题列表
         titles = [item.get('title') for item in result if item.get('title')]
-        titles = titles[:2]
         code = 200 if titles else 404
         msg = "success" if code == 200 else "error"
         return jsonify({"code": code, "msg": msg, "data": titles})
