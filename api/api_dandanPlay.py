@@ -44,3 +44,27 @@ def getSubtitle(params):
             return getSubtitle(params)
     else:
         return ""
+
+
+def getStreamUrl(videoId):
+    return api_dandanPlay_request({
+        "url": f"/api/v1/stream/id/{videoId}",
+        "method": "get",
+        "timeout": 60
+    })
+
+
+def getComment(videoId):
+    return api_dandanPlay_request({
+        "url": f"/api/v1/comment/id/{videoId}",
+        "method": "get",
+        "timeout": 30
+    })
+
+
+def getImage(videoId):
+    return api_dandanPlay_request({
+        "url": f"/api/v1/image/id/{videoId}",
+        "method": "get",
+        "timeout": 30
+    })

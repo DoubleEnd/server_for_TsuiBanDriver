@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 from ai.ai import transcribe_audio_to_srt, get_ai_config
-from api.api_dandanPlay import welcome, bangumi, bangumiList, getSubtitle, library
+from api.api_dandanPlay import welcome, bangumi, bangumiList, getSubtitle, library, getStreamUrl, getComment, getImage
 from api.api_qBittorrent import get_everything, post_everything, set_rule, get_version, get_webapiVersion
 from crawler.get_info import get_info_list
 from crawler.get_rsslink import get_rss_link
@@ -339,6 +339,89 @@ def submit_getSubtitle():
         return data
     elif request.method == "POST":
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+
+
+# 获取视频流 URL
+@app.route("/stream", methods=["GET"])
+def submit_stream():
+    if request.method == "GET":
+        params = request.args.to_dict()
+        if 'videoId' not in params:
+            return jsonify({"error": "缺少videoId参数"}), 400
+
+        video_id = params['videoId']
+        logger.info(f"[stream] 获取视频流URL: {video_id}")
+
+        try:
+            from utils.fun_config import get_url_config
+            url_config = get_url_config()
+            dandan_play_base_url = url_config.get('dandanPlay_BASE_URL', 'http://127.0.0.1:8888')
+            
+            stream_url = f"{dandan_play_base_url}/api/v1/stream/id/{video_id}"
+            logger.info(f"[stream] 生成视频流URL: {stream_url}")
+            
+            return jsonify({"url": stream_url}), 200
+        except Exception as e:
+            logger.error(f"[stream] 异常错误: {str(e)}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+    else:
+        return jsonify({"error": "请求方法不被允许"}), 405
+
+
+# 获取弹幕（直接返回 dandanPlay API 的原始数据）
+@app.route("/comment", methods=["GET"])
+def submit_comment():
+    if request.method == "GET":
+        params = request.args.to_dict()
+        if 'videoId' not in params:
+            return "", 400
+
+        video_id = params['videoId']
+        logger.info(f"[comment] 获取弹幕: {video_id}")
+
+        try:
+            resp = getComment(videoId=video_id)
+            logger.info(f"[comment] dandanPlay API响应状态码: {resp.status_code}")
+            
+            if resp.status_code == 200:
+                logger.info(f"[comment] 成功获取弹幕")
+                return resp.content, 200, {'Content-Type': 'application/json'}
+            else:
+                logger.error(f"[comment] 获取弹幕失败: {resp.status_code}")
+                return "", resp.status_code
+        except Exception as e:
+            logger.error(f"[comment] 异常错误: {str(e)}", exc_info=True)
+            return "", 500
+    else:
+        return "", 405
+
+
+# 获取海报图片（返回图片数据）
+@app.route("/image", methods=["GET"])
+def submit_image():
+    if request.method == "GET":
+        params = request.args.to_dict()
+        if 'videoId' not in params:
+            return jsonify({"error": "缺少videoId参数"}), 400
+
+        video_id = params['videoId']
+        logger.info(f"[image] 获取海报图片: {video_id}")
+
+        try:
+            resp = getImage(videoId=video_id)
+            logger.info(f"[image] dandanPlay API响应状态码: {resp.status_code}")
+            
+            if resp.status_code == 200:
+                logger.info(f"[image] 成功获取海报图片，数据长度: {len(resp.content)} bytes")
+                return resp.content, 200, {'Content-Type': 'image/jpeg'}
+            else:
+                logger.error(f"[image] 获取海报图片失败: {resp.status_code}")
+                return resp.content, resp.status_code, {'Content-Type': 'image/jpeg'}
+        except Exception as e:
+            logger.error(f"[image] 异常错误: {str(e)}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+    else:
+        return jsonify({"error": "请求方法不被允许"}), 405
 
 
 # 获取字幕列表
