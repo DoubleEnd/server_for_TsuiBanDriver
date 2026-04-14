@@ -3,18 +3,10 @@ import os
 import subprocess
 from whisper.utils import WriteSRT
 import torch    #验证是否有可用的gpu
-from utils.fun_config import load_json
+from utils.fun_config import load_json, ai_config_path
 
-# 加载AI配置项
 def get_ai_config():
-    # print("加载AI配置项")
-    try:
-        return load_json('assets/ai_config.json')
-    except FileNotFoundError:
-        return {
-            "valid_models": ["tiny", "small", "medium"],
-            "valid_devices": ["cpu", "gpu"]
-        }
+    return load_json(ai_config_path)
 
 # 生成字幕
 def transcribe_audio_to_srt(video_path, model_type="medium", device="cpu"):

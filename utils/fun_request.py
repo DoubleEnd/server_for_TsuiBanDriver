@@ -39,12 +39,18 @@ def clear_qb_cookie_cache():
 
 def get_qBittorrent_BASE_URL():
     """动态获取 qBittorrent BASE URL"""
-    return get_url_config()['qBittorrent_BASE_URL']
+    config = get_url_config()
+    if config is None:
+        return 'http://127.0.0.1:8080/api/v2/'
+    return config['qBittorrent_BASE_URL']
 
 
 def get_dandanPlay_BASE_URL():
     """动态获取 dandanPlay BASE URL"""
-    return get_url_config()['dandanPlay_BASE_URL']
+    config = get_url_config()
+    if config is None:
+        return 'http://127.0.0.1:8888'
+    return config['dandanPlay_BASE_URL']
 
 
 def get_request_config(use_proxy=True):

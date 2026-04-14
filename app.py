@@ -15,7 +15,7 @@ from crawler.get_subgroupinfo import get_subgroup_info
 from crawler.get_subtitle import get_subtitle_list
 from utils import fun_request
 from utils.fun_config import update_used_rule, request_rule_msg, get_rule_config, get_rule_info, add_edit_rule, \
-    delete_rule, load_json, add_edit_ai_config, delete_ai_config, get_search_config, save_search_config
+    delete_rule, load_json, add_edit_ai_config, delete_ai_config, get_search_config, save_search_config, get_app_info
 
 # 配置日志
 logging.basicConfig(
@@ -168,7 +168,7 @@ def submit_allversion():
         webapi_version = get_webapiVersion(data='').text
         dandan_play_version = welcome(params='').json()['version']
         # print(dandan_play_version)
-        app_info = load_json("assets/app_info.json")
+        app_info = get_app_info()
         for info in app_info:
             if info["name"] == "qbittorrent版本":
                 info["value"] = qb_version

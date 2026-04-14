@@ -4,7 +4,13 @@ from lxml import etree
 from utils.fun_config import get_url_config
 from utils.fun_request import get_request_config
 
-dandanPlay_BASE_URL = get_url_config()['dandanPlay_BASE_URL']
+_url_config = get_url_config()
+if _url_config is None:
+    _url_config = {
+        'dandanPlay_BASE_URL': 'http://127.0.0.1:8888',
+        'qBittorrent_BASE_URL': 'http://127.0.0.1:8080/api/v2/'
+    }
+dandanPlay_BASE_URL = _url_config['dandanPlay_BASE_URL']
 
 
 def get_subtitle_list(videoId):
