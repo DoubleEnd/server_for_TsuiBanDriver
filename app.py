@@ -1,5 +1,6 @@
 import json
 import logging
+import requests
 import time
 
 from flask import Flask, request, jsonify
@@ -347,15 +348,38 @@ def submit_getSubtitleList():
         params = request.args.to_dict()
         if 'videoId' not in params:
             return jsonify({"error": "缺少videoId参数"}), 400
-        result = get_subtitle_list(videoId=params['videoId'])
-        if result is None:
-            return jsonify({"code": 500, "msg": "error", "data": None})
 
-        # 返回标题列表
-        titles = [item.get('title') for item in result if item.get('title')]
-        code = 200 if titles else 404
-        msg = "success" if code == 200 else "error"
-        return jsonify({"code": code, "msg": msg, "data": titles})
+        video_id = params['videoId']
+        titles = []
+
+        try:
+            resp = fun_request.api_dandanPlay_request({
+                "url": f"/api/v1/subtitle/info/{video_id}",
+                "method": "get"
+            })
+            if resp and resp.status_code == 200:
+                data = resp.json()
+                if data and data.get('subtitles'):
+                    subtitles = data['subtitles']
+                    titles = [item.get('fileName') for item in subtitles if item.get('fileName')]
+            elif resp is not None:
+                print(f"API返回错误状态码: {resp.status_code}")
+        except requests.exceptions.Timeout:
+            print(f"API获取字幕列表超时: {video_id}")
+        except requests.exceptions.ConnectionError:
+            print(f"API获取字幕列表连接失败: {video_id}")
+        except Exception as e:
+            print(f"API获取字幕列表失败: {e}")
+
+        if not titles:
+            result = get_subtitle_list(videoId=video_id)
+            if result is not None:
+                titles = [item.get('title') for item in result if item.get('title')]
+
+        if not titles:
+            return jsonify({"code": 404, "msg": "error", "data": None})
+
+        return jsonify({"code": 200, "msg": "success", "data": titles})
     elif request.method == "POST":
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 

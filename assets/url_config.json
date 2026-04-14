@@ -1,8 +1,8 @@
 {
-  "qBittorrent_host": "192.168.10.37",
+  "qBittorrent_host": "127.0.0.1",
   "qBittorrent_port": "8080",
   "qBittorrent_username": "admin",
   "qBittorrent_password": "123456",
-  "dandanPlay_host": "192.168.10.37",
+  "dandanPlay_host": "127.0.0.1",
   "dandanPlay_port": "8888"
 }

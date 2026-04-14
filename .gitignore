@@ -48,6 +48,9 @@ coverage.xml
 .idea/
 .vscode/
 *.sublime-workspace
+
+# Local config (not uploaded to git)
+config/
 *.sublime-project
 
 # OS files

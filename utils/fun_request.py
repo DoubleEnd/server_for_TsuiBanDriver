@@ -115,6 +115,7 @@ def request(config, url, use_proxy=True):
     headers = config.get('headers', {})
     data = config.get('data', {})
     cookie = config.get('cookie', '')
+    timeout = config.get('timeout', 15)
     
     # 获取搜索配置中的请求设置
     search_request_config = get_request_config(use_proxy=use_proxy)
@@ -138,15 +139,15 @@ def request(config, url, use_proxy=True):
 
     try:
         if method == 'GET':
-            response = requests.get(url, params=params, cookies=cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
+            response = requests.get(url, params=params, cookies=cookie, headers=headers, proxies=proxies, timeout=timeout, verify=verify_ssl)
         elif method == 'POST':
-            response = requests.post(url, params=params, data=data, cookies=cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
+            response = requests.post(url, params=params, data=data, cookies=cookie, headers=headers, proxies=proxies, timeout=timeout, verify=verify_ssl)
         elif method == 'PUT':
-            response = requests.put(url, params=params, data=data, cookies=cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
+            response = requests.put(url, params=params, data=data, cookies=cookie, headers=headers, proxies=proxies, timeout=timeout, verify=verify_ssl)
         elif method == 'DELETE':
-            response = requests.delete(url, params=params, cookies=cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
+            response = requests.delete(url, params=params, cookies=cookie, headers=headers, proxies=proxies, timeout=timeout, verify=verify_ssl)
         elif method == 'HEAD':
-            response = requests.head(url, params=params, cookies=cookie, headers=headers, proxies=proxies, timeout=15, verify=verify_ssl)
+            response = requests.head(url, params=params, cookies=cookie, headers=headers, proxies=proxies, timeout=timeout, verify=verify_ssl)
         else:
             raise ValueError(f"该请求方式: {method} 不被支持")
 

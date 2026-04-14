@@ -1,31 +1,45 @@
 import json
+from utils.config_manager import init_config, get_config_path_by_name, load_json_safe, save_json_safe, get_assets_path
 
-rule_config_path = 'assets/rule_config.json'
-rule_info_path = 'assets/rule_info.json'
-url_config_path = 'assets/url_config.json'
-ai_config_path = 'assets/ai_config.json'
-search_config_path = 'assets/search_config.json'
+init_config()
 
-# 读取规则配置文件
+rule_config_path = get_config_path_by_name('rule_config.json')
+rule_info_path = get_config_path_by_name('rule_info.json')
+url_config_path = get_config_path_by_name('url_config.json')
+ai_config_path = get_config_path_by_name('ai_config.json')
+search_config_path = get_config_path_by_name('search_config.json')
+
 def load_json(file_path):
-    with open(file_path, 'r', encoding='utf-8') as file:
-        return json.load(file)
+    data = load_json_safe(file_path)
+    if data is None:
+        assets_path = file_path.replace('config/', 'assets/')
+        data = load_json_safe(assets_path)
+        if data is not None:
+            save_json_safe(file_path, data)
+        else:
+            return {}
+    return data
 
 def get_url_config():
     url_config = load_json(url_config_path)
-    # 兼容旧格式并构建新格式
-    qb_host = url_config.get('qBittorrent_host', '192.168.10.37')
-    qb_port = url_config.get('qBittorrent_port', '8080')
-    ddp_host = url_config.get('dandanPlay_host', '192.168.10.37')
-    ddp_port = url_config.get('dandanPlay_port', '8888')
+    if not url_config:
+        url_config = load_json_safe(get_assets_path('url_config.json'))
+    
+    qb_host = url_config.get('qBittorrent_host')
+    qb_port = url_config.get('qBittorrent_port')
+    ddp_host = url_config.get('dandanPlay_host')
+    ddp_port = url_config.get('dandanPlay_port')
+    
+    if not qb_host or not qb_port or not ddp_host or not ddp_port:
+        return None
     
     return {
         'qBittorrent_BASE_URL': f"http://{qb_host}:{qb_port}/api/v2/",
         'dandanPlay_BASE_URL': f"http://{ddp_host}:{ddp_port}",
         'qBittorrent_host': qb_host,
         'qBittorrent_port': qb_port,
-        'qBittorrent_username': url_config.get('qBittorrent_username', 'admin'),
-        'qBittorrent_password': url_config.get('qBittorrent_password', '123456'),
+        'qBittorrent_username': url_config.get('qBittorrent_username'),
+        'qBittorrent_password': url_config.get('qBittorrent_password'),
         'dandanPlay_host': ddp_host,
         'dandanPlay_port': ddp_port
     }
@@ -42,8 +56,7 @@ def get_rule_info():
 
 # 保存规则配置文件
 def save_json(file_path, data):
-    with open(file_path, 'w', encoding='utf-8') as file:
-        json.dump(data, file, ensure_ascii=False, indent=2)
+    save_json_safe(file_path, data)
 
 # 更新使用的规则
 def update_used_rule(rule_name):
@@ -150,71 +163,52 @@ def delete_ai_config(key):
 
 # 获取搜索配置
 def get_search_config():
-    try:
-        search_config = load_json(search_config_path)
-        # 确保 proxy_protocol 字段存在，默认为 'http'
-        if 'proxy_protocol' not in search_config:
-            search_config['proxy_protocol'] = 'http'
-        return search_config
-    except:
-        return {
-            "search_header": "",
-            "proxy_enabled": False,
-            "proxy_protocol": "http",
-            "proxy_host": "",
-            "proxy_port": ""
-        }
+    search_config = load_json(search_config_path)
+    if not search_config:
+        search_config = load_json_safe(get_assets_path('search_config.json'))
+    return search_config or {}
 
 # 保存搜索配置
 def save_search_config(data):
-    try:
-        search_config = {
-            "search_header": data.get("search_header", ""),
-            "proxy_enabled": data.get("proxy_enabled", False),
-            "proxy_protocol": data.get("proxy_protocol", "http"),
-            "proxy_host": data.get("proxy_host", ""),
-            "proxy_port": data.get("proxy_port", "")
-        }
-        save_json(search_config_path, search_config)
-        return True
-    except:
-        return False
+    default_config = load_json_safe(get_assets_path('search_config.json')) or {}
+    search_config = {
+        "search_header": data.get("search_header", default_config.get("search_header", "")),
+        "proxy_enabled": data.get("proxy_enabled", default_config.get("proxy_enabled", False)),
+        "proxy_protocol": data.get("proxy_protocol", default_config.get("proxy_protocol", "http")),
+        "proxy_host": data.get("proxy_host", default_config.get("proxy_host", "")),
+        "proxy_port": data.get("proxy_port", default_config.get("proxy_port", ""))
+    }
+    save_json(search_config_path, search_config)
+    return True
 
 # 获取URL配置
 def get_url_config_all():
-    try:
-        url_config = load_json(url_config_path)
-        # 兼容旧格式
-        return {
-            "qBittorrent_host": url_config.get("qBittorrent_host", "192.168.10.37"),
-            "qBittorrent_port": url_config.get("qBittorrent_port", "8080"),
-            "qBittorrent_username": url_config.get("qBittorrent_username", "admin"),
-            "qBittorrent_password": url_config.get("qBittorrent_password", "123456"),
-            "dandanPlay_host": url_config.get("dandanPlay_host", "192.168.10.37"),
-            "dandanPlay_port": url_config.get("dandanPlay_port", "8888")
-        }
-    except:
-        return {
-            "qBittorrent_host": "192.168.10.37",
-            "qBittorrent_port": "8080",
-            "qBittorrent_username": "admin",
-            "qBittorrent_password": "123456",
-            "dandanPlay_host": "192.168.10.37",
-            "dandanPlay_port": "8888"
-        }
+    url_config = load_json(url_config_path)
+    if not url_config:
+        url_config = load_json_safe(get_assets_path('url_config.json'))
+    
+    if not url_config:
+        return None
+    
+    return {
+        "qBittorrent_host": url_config.get("qBittorrent_host"),
+        "qBittorrent_port": url_config.get("qBittorrent_port"),
+        "qBittorrent_username": url_config.get("qBittorrent_username"),
+        "qBittorrent_password": url_config.get("qBittorrent_password"),
+        "dandanPlay_host": url_config.get("dandanPlay_host"),
+        "dandanPlay_port": url_config.get("dandanPlay_port")
+    }
 
 # 保存URL配置
 def save_url_config(data):
-    try:
-        url_config = {
-            "qBittorrent_host": data.get("qBittorrent_host", "192.168.10.37"),
-            "qBittorrent_port": data.get("qBittorrent_port", "8080"),
-            "qBittorrent_username": data.get("qBittorrent_username", "admin"),
-            "qBittorrent_password": data.get("qBittorrent_password", "123456"),
-            "dandanPlay_host": data.get("dandanPlay_host", "192.168.10.37"),
-            "dandanPlay_port": data.get("dandanPlay_port", "8888")
-        }
-        save_json(url_config_path, url_config)
-        return True
-    except:
-        return False
+    default_config = load_json_safe(get_assets_path('url_config.json')) or {}
+    url_config = {
+        "qBittorrent_host": data.get("qBittorrent_host", default_config.get("qBittorrent_host")),
+        "qBittorrent_port": data.get("qBittorrent_port", default_config.get("qBittorrent_port")),
+        "qBittorrent_username": data.get("qBittorrent_username", default_config.get("qBittorrent_username")),
+        "qBittorrent_password": data.get("qBittorrent_password", default_config.get("qBittorrent_password")),
+        "dandanPlay_host": data.get("dandanPlay_host", default_config.get("dandanPlay_host")),
+        "dandanPlay_port": data.get("dandanPlay_port", default_config.get("dandanPlay_port"))
+    }
+    save_json(url_config_path, url_config)
+    return True
