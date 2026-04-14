@@ -341,7 +341,58 @@ def submit_getSubtitle():
         return jsonify({"error": "请使用 GET 方法提交数据"}), 400
 
 
-# 获取视频流 URL
+def is_same_network(ip1, ip2, netmask='255.255.255.0'):
+    """检查两个IP是否在同一网段"""
+    import ipaddress
+    try:
+        ip1 = ip1.strip()
+        ip2 = ip2.strip()
+        if ip1 == ip2:
+            return True
+        addr1 = ipaddress.ip_address(ip1)
+        addr2 = ipaddress.ip_address(ip2)
+        network = ipaddress.ip_network(f"{ip1}/{netmask}", strict=False)
+        return addr2 in network
+    except Exception as e:
+        logger.warning(f"[is_same_network] IP网段检查失败: ip1={ip1}, ip2={ip2}, error={str(e)}")
+        return False
+
+
+def get_local_ip_for_target(target_ip):
+    """获取能够访问目标IP的本机IP"""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(2)
+        s.connect((target_ip, 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception as e:
+        logger.warning(f"[stream] 获取本机IP失败: {str(e)}")
+        return None
+
+
+def get_local_ip():
+    """获取本机IP地址"""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(2)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception as e:
+        logger.warning(f"[stream] 获取本机IP失败: {str(e)}")
+        return "127.0.0.1"
+
+
+def replace_ip_in_url(url, old_ip, new_ip):
+    """替换URL中的IP地址"""
+    return url.replace(old_ip, new_ip)
+
+
 @app.route("/stream", methods=["GET"])
 def submit_stream():
     if request.method == "GET":
@@ -350,15 +401,37 @@ def submit_stream():
             return jsonify({"error": "缺少videoId参数"}), 400
 
         video_id = params['videoId']
-        logger.info(f"[stream] 获取视频流URL: {video_id}")
+        client_ip = request.headers.get('X-Real-IP') or request.headers.get('X-Forwarded-For', request.remote_addr)
+        if ',' in client_ip:
+            client_ip = client_ip.split(',')[0].strip()
+        logger.info(f"[stream] 获取视频流URL: {video_id}, 客户端IP: {client_ip}")
 
         try:
             from utils.fun_config import get_url_config
             url_config = get_url_config()
             dandan_play_base_url = url_config.get('dandanPlay_BASE_URL', 'http://127.0.0.1:8888')
+            backend_ip = get_local_ip()
             
             stream_url = f"{dandan_play_base_url}/api/v1/stream/id/{video_id}"
-            logger.info(f"[stream] 生成视频流URL: {stream_url}")
+            
+            from urllib.parse import urlparse
+            parsed_url = urlparse(stream_url)
+            video_server_ip = parsed_url.hostname
+            logger.info(f"[stream] 原始视频流URL: {stream_url}")
+            logger.info(f"[stream] 视频服务器IP: {video_server_ip}")
+            logger.info(f"[stream] Python后端主机IP: {backend_ip}")
+            
+            if is_same_network(client_ip, video_server_ip):
+                logger.info(f"[stream] 客户端IP {client_ip} 与视频服务器IP {video_server_ip} 在同一网段，使用原始URL")
+            else:
+                logger.info(f"[stream] 客户端IP {client_ip} 与视频服务器IP {video_server_ip} 不在同一网段")
+                
+                if is_same_network(client_ip, backend_ip):
+                    logger.info(f"[stream] 客户端IP {client_ip} 与后端IP {backend_ip} 在同一网段，替换视频URL的IP")
+                    stream_url = replace_ip_in_url(stream_url, video_server_ip, backend_ip)
+                    logger.info(f"[stream] 已替换IP为: {stream_url}")
+                else:
+                    logger.warning(f"[stream] 客户端IP {client_ip} 与后端IP {backend_ip} 也不在同一网段，保持原始URL")
             
             return jsonify({"url": stream_url}), 200
         except Exception as e:
