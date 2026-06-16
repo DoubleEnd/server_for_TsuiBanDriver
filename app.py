@@ -3,7 +3,7 @@ import logging
 import requests
 import time
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 
 from ai.ai import transcribe_audio_to_srt, get_ai_config
@@ -16,6 +16,7 @@ from crawler.get_subtitle import get_subtitle_list
 from utils import fun_request
 from utils.fun_config import update_used_rule, request_rule_msg, get_rule_config, get_rule_info, add_edit_rule, \
     delete_rule, load_json, add_edit_ai_config, delete_ai_config, get_search_config, save_search_config, get_app_info
+from utils.fun_aiChat import chat
 
 # 配置日志
 logging.basicConfig(
@@ -641,6 +642,33 @@ def submit_deleteaiconfig():
             return jsonify({"code": 400, "msg": "error", "data": "缺少配置项名称"})
     else:
         return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+
+
+# AI 对话接口（SSE 流式推送）
+@app.route("/aiChat", methods=["POST"])
+def submit_aiChat():
+    if request.method != "POST":
+        return jsonify({"code": 405, "msg": "请求方法不被允许"}), 405
+
+    data = request.json
+    if not data:
+        return jsonify({"code": 400, "msg": "请求体为空"}), 400
+
+    def generate():
+        for event in chat(
+            message=data.get("message", ""),
+            history=data.get("history", [])
+        ):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 
 # 获取搜索配置
