@@ -78,7 +78,7 @@ def get_request_config(use_proxy=True):
         if proxy_host and proxy_port:
             # 构建代理URL，支持 http 和 socks5 协议
             if proxy_protocol == 'socks5':
-                proxy_url = f"socks5://{proxy_host}:{proxy_port}"
+                proxy_url = f"socks5h://{proxy_host}:{proxy_port}"
             else:
                 # 默认使用 http
                 proxy_url = f"http://{proxy_host}:{proxy_port}"
@@ -94,8 +94,11 @@ def get_request_config(use_proxy=True):
 def api_qBittorrent_request(config):
     """qBittorrent 请求（不使用代理）"""
     url = get_qBittorrent_BASE_URL() + config.get('url', '')
-    cookie = get_qb_cookie()
-    # 将 cookie 临时添加到 config 中
+    # 登录接口不需要 cookie，否则会无限递归
+    if config.get('url') == 'auth/login':
+        cookie = ''
+    else:
+        cookie = get_qb_cookie()
     original_cookie = config.get('cookie', '')
     config['cookie'] = cookie
     result = request(config, url, use_proxy=False)

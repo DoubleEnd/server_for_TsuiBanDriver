@@ -8,14 +8,21 @@ from flask_cors import CORS
 
 from ai.ai import transcribe_audio_to_srt, get_ai_config
 from api.api_dandanPlay import welcome, bangumi, bangumiList, getSubtitle, library, getStreamUrl, getComment, getImage
-from api.api_qBittorrent import get_everything, post_everything, set_rule, get_version, get_webapiVersion
+from api.api_qBittorrent import (
+    get_everything, post_everything, set_rule, get_version, get_webapiVersion,
+    addFeed, get_rss_items, get_rss_rules, add_torrents, get_torrents_info,
+    remove_item, refresh_item, move_item, mark_as_read,
+    delete_torrents, matching_articles, remove_rule, set_location,
+    get_sync_maindata
+)
 from crawler.get_info import get_info_list
 from crawler.get_rsslink import get_rss_link
 from crawler.get_subgroupinfo import get_subgroup_info
 from crawler.get_subtitle import get_subtitle_list
 from utils import fun_request
 from utils.fun_config import update_used_rule, request_rule_msg, get_rule_config, get_rule_info, add_edit_rule, \
-    delete_rule, load_json, add_edit_ai_config, delete_ai_config, get_search_config, save_search_config, get_app_info
+    delete_rule, load_json, add_edit_ai_config, delete_ai_config, get_search_config, save_search_config, get_app_info, \
+    get_ai_chat_config, save_ai_chat_config
 from utils.fun_aiChat import chat
 
 # 配置日志
@@ -159,6 +166,146 @@ def submit_everything():
 
     else:
         return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
+
+
+# ============ qBittorrent 专用接口 ============
+
+def _simple_post_response(result):
+    """统一处理 POST 请求的响应：返回 status_code 和结果文本"""
+    try:
+        return jsonify({"code": result.status_code,
+                        "msg": "success" if result.status_code == 200 else "error",
+                        "data": result.text if result.status_code == 200 else None})
+    except Exception:
+        return jsonify({"code": 500, "msg": "error", "data": None}), 500
+
+
+def _simple_get_response(result):
+    """统一处理 GET 请求的响应：返回 status_code 和 JSON 数据"""
+    try:
+        data = result.json()
+        return jsonify({"code": result.status_code,
+                        "msg": "success" if result.status_code == 200 else "error",
+                        "data": data})
+    except ValueError:
+        return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
+    except Exception:
+        return jsonify({"code": 500, "msg": "error", "data": None}), 500
+
+
+# RSS 订阅
+@app.route("/addFeed", methods=["POST"])
+def submit_addfeed():
+    data = request.json
+    result = addFeed(data)
+    return _simple_post_response(result)
+
+
+# RSS 条目列表
+@app.route("/rssItems", methods=["GET"])
+def submit_rssitems():
+    params = request.args.to_dict()
+    result = get_rss_items(params)
+    return _simple_get_response(result)
+
+
+# RSS 规则列表
+@app.route("/rssRules", methods=["GET"])
+def submit_rssrules():
+    params = request.args.to_dict()
+    result = get_rss_rules(params)
+    return _simple_get_response(result)
+
+
+# 删除 RSS 条目
+@app.route("/removeItem", methods=["POST"])
+def submit_removeitem():
+    data = request.json
+    result = remove_item(data)
+    return _simple_post_response(result)
+
+
+# 刷新 RSS 条目
+@app.route("/refreshItem", methods=["POST"])
+def submit_refreshitem():
+    data = request.json
+    result = refresh_item(data)
+    return _simple_post_response(result)
+
+
+# 移动 RSS 条目
+@app.route("/moveItem", methods=["POST"])
+def submit_moveitem():
+    data = request.json
+    result = move_item(data)
+    return _simple_post_response(result)
+
+
+# 标记 RSS 条目已读
+@app.route("/markAsRead", methods=["POST"])
+def submit_markasread():
+    data = request.json
+    result = mark_as_read(data)
+    return _simple_post_response(result)
+
+
+# 添加下载任务
+@app.route("/addTorrents", methods=["POST"])
+def submit_addtorrents():
+    data = request.json
+    result = add_torrents(data)
+    return _simple_post_response(result)
+
+
+# 删除下载任务
+@app.route("/deleteTorrents", methods=["POST"])
+def submit_deletetorrents():
+    data = request.json
+    result = delete_torrents(data)
+    return _simple_post_response(result)
+
+
+# 获取种子列表
+@app.route("/torrentsInfo", methods=["GET"])
+def submit_torrentsinfo():
+    params = request.args.to_dict()
+    result = get_torrents_info(params)
+    return _simple_get_response(result)
+
+
+# 匹配 RSS 文章
+@app.route("/matchingArticles", methods=["GET"])
+def submit_matchingarticles():
+    params = request.args.to_dict()
+    result = matching_articles(params)
+    return _simple_get_response(result)
+
+
+# 删除 RSS 规则
+@app.route("/removeRule", methods=["POST"])
+def submit_removerule():
+    data = request.json
+    result = remove_rule(data)
+    return _simple_post_response(result)
+
+
+# 设置种子保存位置
+@app.route("/setLocation", methods=["POST"])
+def submit_setlocation():
+    data = request.json
+    result = set_location(data)
+    return _simple_post_response(result)
+
+
+# 获取下载列表 (sync/maindata)
+@app.route("/downloadList", methods=["GET"])
+def submit_downloadlist():
+    params = request.args.to_dict()
+    result = get_sync_maindata(params)
+    return _simple_get_response(result)
+
+
+# ============ 以上为 qBittorrent 专用接口 ============
 
 
 # 发送qBittorrent版本信息和个人信息
@@ -640,6 +787,34 @@ def submit_deleteaiconfig():
                 return jsonify({"code": 404, "msg": "error", "data": "配置项不存在"})
         else:
             return jsonify({"code": 400, "msg": "error", "data": "缺少配置项名称"})
+    else:
+        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+
+
+# 获取 AI 对话配置
+@app.route("/aiChatConfig", methods=["GET"])
+def get_ai_chat_configuration():
+    try:
+        config = get_ai_chat_config()
+        return jsonify({"code": 200, "msg": "success", "data": config})
+    except Exception as e:
+        logger.error(f"[aiChatConfig] 获取配置失败: {str(e)}", exc_info=True)
+        return jsonify({"code": 500, "msg": "error", "data": None}), 500
+
+
+# 保存 AI 对话配置
+@app.route("/saveAiChatConfig", methods=["POST"])
+def submit_saveaichatconfig():
+    if request.method == "POST":
+        data = request.json
+        if not data:
+            return jsonify({"code": 400, "msg": "请求体为空"}), 400
+        try:
+            save_ai_chat_config(data)
+            return jsonify({"code": 200, "msg": "success", "data": None})
+        except Exception as e:
+            logger.error(f"[saveAiChatConfig] 保存配置失败: {str(e)}", exc_info=True)
+            return jsonify({"code": 500, "msg": "error", "data": None}), 500
     else:
         return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
 

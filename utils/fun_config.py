@@ -6,6 +6,7 @@ rule_config_path = get_config_path('rule_config.json')
 rule_info_path = get_config_path('rule_info.json')
 url_config_path = get_config_path('url_config.json')
 ai_config_path = get_config_path('ai_config.json')
+ai_chat_config_path = get_config_path('ai_chat_config.json')
 search_config_path = get_config_path('search_config.json')
 app_info_path = get_config_path('app_info.json')
 
@@ -41,6 +42,12 @@ DEFAULT_AI_CONFIG = {
     "default_device": "cpu"
 }
 
+DEFAULT_AI_CHAT_CONFIG = {
+    "api_key": "",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-v4-pro"
+}
+
 DEFAULT_APP_INFO = [
     { "name": "后端版本", "value": "1.0.0" },
     { "name": "作者", "value": "@DoubleEnd", "href": "https://github.com/DoubleEnd"},
@@ -64,6 +71,7 @@ ensure_config_file(search_config_path, DEFAULT_SEARCH_CONFIG)
 ensure_config_file(rule_config_path, DEFAULT_RULE_CONFIG)
 ensure_config_file(rule_info_path, {})
 ensure_config_file(ai_config_path, DEFAULT_AI_CONFIG)
+ensure_config_file(ai_chat_config_path, DEFAULT_AI_CHAT_CONFIG)
 ensure_config_file(app_info_path, DEFAULT_APP_INFO)
 
 def load_json(file_path):
@@ -172,6 +180,30 @@ def delete_ai_config(key):
         save_json_safe(ai_config_path, ai_config)
         return True
     return False
+
+def get_ai_chat_config():
+    """获取 AI 对话配置，缺失字段自动用默认值补全"""
+    config = load_json(ai_chat_config_path)
+    if not config:
+        config = {}
+    changed = False
+    for key, default_value in DEFAULT_AI_CHAT_CONFIG.items():
+        if key not in config:
+            config[key] = default_value
+            changed = True
+    if changed:
+        save_json_safe(ai_chat_config_path, config)
+    return config
+
+def save_ai_chat_config(data):
+    """保存 AI 对话配置"""
+    config = {
+        "api_key": data.get("api_key", DEFAULT_AI_CHAT_CONFIG["api_key"]),
+        "base_url": data.get("base_url", DEFAULT_AI_CHAT_CONFIG["base_url"]),
+        "model": data.get("model", DEFAULT_AI_CHAT_CONFIG["model"])
+    }
+    save_json_safe(ai_chat_config_path, config)
+    return True
 
 def get_search_config():
     return load_json(search_config_path) or DEFAULT_SEARCH_CONFIG
