@@ -83,3 +83,5 @@ node_modules/
 
 # Don't track local settings
 local_settings.py
+
+AGENT.md

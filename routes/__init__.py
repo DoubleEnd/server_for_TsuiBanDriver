@@ -4,6 +4,7 @@ from .qbittorrent import qbittorrent_bp
 from .dandanplay import dandanplay_bp
 from .config import config_bp
 from .ai import ai_bp
+from .bangumi import bangumi_bp
 
 
 def register_blueprints(app):
@@ -12,3 +13,4 @@ def register_blueprints(app):
     app.register_blueprint(dandanplay_bp)
     app.register_blueprint(config_bp)
     app.register_blueprint(ai_bp)
+    app.register_blueprint(bangumi_bp)
