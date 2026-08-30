@@ -1,13 +1,13 @@
 # 搜索相关路由
-import json
 import logging
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 
 from crawler.get_info import get_info_list
 from crawler.get_rsslink import get_rss_link
 from crawler.get_subgroupinfo import get_subgroup_info
 from utils.fun_config import get_search_config
+from utils.fun_response import success, error
 
 logger = logging.getLogger(__name__)
 search_bp = Blueprint('search', __name__)
@@ -28,23 +28,25 @@ def submit_info():
         try:
             result = get_info_list(banguminame=banguminame)
             code = 500 if result is None else 404 if result == {} else 200
-            msg = "success" if code == 200 else "error"
 
             if code == 200:
                 logger.info(f"[searchAllInfo] 成功搜索到番剧: {banguminame}")
+                return success(result)
+            elif code == 404:
+                logger.warning(f"[searchAllInfo] 未找到番剧: {banguminame}")
+                return error("未找到该番剧", 404, data=result)
             else:
-                logger.warning(f"[searchAllInfo] 搜索失败 - 代码: {code}, 消息: {msg}")
-
-            return jsonify({"code": code, "msg": msg, "data": result})
+                logger.warning(f"[searchAllInfo] 搜索失败 - 代码: {code}")
+                return error("搜索番剧失败", 500, data=result)
         except Exception as e:
             logger.error(f"[searchAllInfo] 异常错误: {str(e)}", exc_info=True)
-            return jsonify({"code": 500, "msg": f"error: {str(e)}", "data": None}), 500
+            return error("搜索番剧失败", 500, msg=str(e))
 
     elif request.method == "GET":
-        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+        return error("请使用 POST 方法提交数据", 400)
 
     else:
-        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+        return error("请求方法不被允许", 405)
 
 
 @search_bp.route("/getSubgroupInfo", methods=["GET", "POST"])
@@ -54,14 +56,18 @@ def submit_subgroupinfo():
         bangumiId = data.get("bangumiId")
         result = get_subgroup_info(bangumiId=bangumiId)
         code = 500 if result is None else 404 if result == [] else 200
-        msg = "success" if code == 200 else "error"
-        return jsonify({"code": code, "msg": msg, "data": result})
+        if code == 200:
+            return success(result)
+        elif code == 404:
+            return error("未找到字幕组信息", 404, data=result)
+        else:
+            return error("获取字幕组信息失败", 500)
 
     elif request.method == "GET":
-        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+        return error("请使用 POST 方法提交数据", 400)
 
     else:
-        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+        return error("请求方法不被允许", 405)
 
 
 @search_bp.route("/addRssLink", methods=["GET", "POST"])
@@ -71,10 +77,12 @@ def submit_addrsslink():
         bangumiId = data.get("bangumiId")
         subgroupId = data.get("subgroupId")
         result = get_rss_link(bangumiId=bangumiId, subgroupid=subgroupId)
-        return jsonify({"code": result.status_code, "msg": ("success" if result.status_code == 200 else "error")})
+        if result.status_code == 200:
+            return success(None)
+        return error("添加RSS订阅失败", result.status_code or 500, msg=result.text)
 
     elif request.method == "GET":
-        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+        return error("请使用 POST 方法提交数据", 400)
 
     else:
-        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+        return error("请求方法不被允许", 405)

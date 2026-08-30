@@ -2,9 +2,10 @@
 import logging
 
 import requests
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 
 from utils.fun_request import request as fun_request
+from utils.fun_response import success, error
 
 logger = logging.getLogger(__name__)
 bangumi_bp = Blueprint('bangumi', __name__)
@@ -29,7 +30,7 @@ def _proxy_bangumi_request(rel_path):
     use_mirror = request.args.get("useMirror", "false").lower() == "true"
     method = request.method.upper()
     if method not in ALLOWED_METHODS:
-        return jsonify({"code": 405, "msg": f"请求方法 {method} 不被允许", "data": None}), 405
+        return error("请求方法不被允许", 405)
 
     upstream_params = {k: v for k, v in request.args.items() if k.lower() != "usemirror"}
     upstream_headers = {k: v for k, v in request.headers.items()
@@ -74,10 +75,10 @@ def _proxy_bangumi_request(rel_path):
                         else:
                             body = response.text
                         logger.info(f"[bangumi/proxy] 成功 {method} {upstream_url} -> {response.status_code}")
-                        return jsonify({"code": 200, "msg": "success", "data": body})
+                        return success(body)
                     except Exception as e:
                         logger.warning(f"[bangumi/proxy] 解析响应失败, 返回原文: {str(e)}")
-                        return jsonify({"code": 200, "msg": "success", "data": response.text})
+                        return success(response.text)
 
                 last_error = f"HTTP {response.status_code}: {response.text}"
                 logger.warning(f"[bangumi/proxy] 上游失败 {method} {upstream_url} -> {last_error}")
@@ -88,15 +89,11 @@ def _proxy_bangumi_request(rel_path):
                     f"source={source_name} proxy={use_proxy}: {last_error}"
                 )
 
-        return jsonify({
-            "code": 502,
-            "msg": f"请求 Bangumi API 失败: {last_error}",
-            "data": None,
-        }), 502
+        return error("请求 Bangumi API 失败", 502, msg=last_error)
 
     except Exception as e:
         logger.error(f"[bangumi/proxy] 异常错误 {method} {rel_path}: {str(e)}", exc_info=True)
-        return jsonify({"code": 500, "msg": f"error: {str(e)}", "data": None}), 500
+        return error("请求 Bangumi API 失败", 500, msg=str(e))
 
 
 @bangumi_bp.route("/proxy/<path:subpath>", methods=ALLOWED_METHODS)

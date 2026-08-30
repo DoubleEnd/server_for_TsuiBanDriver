@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify
 from api.api_dandanPlay import bangumi, bangumiList, getSubtitle, library, getStreamUrl, getComment, getImage
 from crawler.get_subtitle import get_subtitle_list
 from utils import fun_request
+from utils.fun_response import success, error
 
 logger = logging.getLogger(__name__)
 dandanplay_bp = Blueprint('dandanplay', __name__)
@@ -19,9 +20,9 @@ def submit_library():
         if data:
             return data.text
         else:
-            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}), 500
+            return error("获取番剧库失败", 500)
     elif request.method == "POST":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+        return error("请使用 GET 方法提交数据", 400)
 
 
 @dandanplay_bp.route("/bangumi", methods=["GET", "POST"])
@@ -32,9 +33,38 @@ def submit_bangumi():
         if result:
             return result.text
         else:
-            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}), 500
+            return error("获取番剧列表失败", 500)
     elif request.method == "POST":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+        return error("请使用 GET 方法提交数据", 400)
+
+
+@dandanplay_bp.route("/bangumi/search", methods=["GET", "POST"])
+def submit_bangumi_search():
+    """番剧搜索：params 为导航类型（nav），keyword 为搜索关键字，由后端完成筛选后返回"""
+    if request.method == "GET":
+        args = request.args.to_dict()
+        nav_type = args.get('params', '')
+        keyword = args.get('keyword', '')
+        logger.info(f"[bangumi/search] 类型: {nav_type}, 关键字: {keyword}")
+        try:
+            result = bangumi(params=nav_type)
+            if not result:
+                return error("获取番剧列表失败", 500, data=[])
+            try:
+                data = result.json()
+            except Exception:
+                data = []
+            if not isinstance(data, list):
+                data = []
+            keyword_lower = keyword.strip().lower()
+            if keyword_lower:
+                data = [item for item in data
+                        if keyword_lower in str(item.get('Title', '')).lower()]
+            return success(data)
+        except Exception as e:
+            logger.error(f"[bangumi/search] 异常错误: {str(e)}", exc_info=True)
+            return error("获取番剧列表失败", 500, msg=str(e), data=[])
+    return error("请使用 GET 方法提交数据", 400)
 
 
 @dandanplay_bp.route("/bangumiList", methods=["GET", "POST"])
@@ -45,9 +75,9 @@ def submit_bangumiList():
         if result:
             return result.text
         else:
-            return jsonify({"code": 500, "msg": "error", "data": "访问失败"}), 500
+            return error("获取番剧详情失败", 500)
     elif request.method == "POST":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+        return error("请使用 GET 方法提交数据", 400)
 
 
 @dandanplay_bp.route("/getSubtitle", methods=["GET", "POST"])
@@ -57,7 +87,7 @@ def submit_getSubtitle():
         data = getSubtitle(params=params['videoId'])
         return data
     elif request.method == "POST":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+        return error("请使用 GET 方法提交数据", 400)
 
 
 # 视频流相关辅助函数
@@ -96,7 +126,7 @@ def submit_stream():
     if request.method == "GET":
         params = request.args.to_dict()
         if 'videoId' not in params:
-            return jsonify({"error": "缺少videoId参数"}), 400
+            return error("缺少videoId参数", 400)
 
         video_id = params['videoId']
         client_ip = request.headers.get('X-Real-IP') or request.headers.get('X-Forwarded-For', request.remote_addr)
@@ -133,9 +163,9 @@ def submit_stream():
             return jsonify({"url": stream_url}), 200
         except Exception as e:
             logger.error(f"[stream] 异常错误: {str(e)}", exc_info=True)
-            return jsonify({"error": str(e)}), 500
+            return error("获取视频流失败", 500, msg=str(e))
     else:
-        return jsonify({"error": "请求方法不被允许"}), 405
+        return error("请求方法不被允许", 405)
 
 
 @dandanplay_bp.route("/comment", methods=["GET"])
@@ -165,7 +195,7 @@ def submit_image():
     if request.method == "GET":
         params = request.args.to_dict()
         if 'videoId' not in params:
-            return jsonify({"error": "缺少videoId参数"}), 400
+            return error("缺少videoId参数", 400)
         video_id = params['videoId']
         logger.info(f"[image] 获取海报图片: {video_id}")
         try:
@@ -176,9 +206,9 @@ def submit_image():
                 return resp.content, resp.status_code, {'Content-Type': 'image/jpeg'}
         except Exception as e:
             logger.error(f"[image] 异常错误: {str(e)}", exc_info=True)
-            return jsonify({"error": str(e)}), 500
+            return error("获取海报图片失败", 500, msg=str(e))
     else:
-        return jsonify({"error": "请求方法不被允许"}), 405
+        return error("请求方法不被允许", 405)
 
 
 @dandanplay_bp.route("/getSubtitleList", methods=["GET", "POST"])
@@ -186,7 +216,7 @@ def submit_getSubtitleList():
     if request.method == "GET":
         params = request.args.to_dict()
         if 'videoId' not in params:
-            return jsonify({"error": "缺少videoId参数"}), 400
+            return error("缺少videoId参数", 400)
         video_id = params['videoId']
         titles = []
         try:
@@ -208,10 +238,10 @@ def submit_getSubtitleList():
                 titles = [item.get('title') for item in result if item.get('title')]
 
         if not titles:
-            return jsonify({"code": 404, "msg": "error", "data": None})
-        return jsonify({"code": 200, "msg": "success", "data": titles})
+            return error("未找到字幕", 404)
+        return success(titles)
     elif request.method == "POST":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+        return error("请使用 GET 方法提交数据", 400)
 
 
 @dandanplay_bp.route("/setSubtitle", methods=["GET", "POST"])
@@ -219,17 +249,19 @@ def submit_setSubtitle():
     if request.method == "GET":
         params = request.args.to_dict()
         if 'videoId' not in params or 'subtitle' not in params:
-            return jsonify({"error": "缺少videoId或subtitle参数"}), 400
+            return error("缺少videoId或subtitle参数", 400)
         try:
             resp = fun_request.api_dandanPlay_request({
                 "url": "/web1/video.html",
                 "method": "get",
                 "params": {"id": params['videoId'], "subtitle": params['subtitle']}
             })
-            success = resp is not None and resp.status_code == 200
-            return jsonify({"code": 200 if success else 500, "msg": "success" if success else "error", "data": success})
+            ok = resp is not None and resp.status_code == 200
+            if ok:
+                return success(True)
+            return error("设置字幕失败", 500, data=False)
         except Exception as e:
             print(f"setSubtitle 请求出错: {e}")
-            return jsonify({"code": 500, "msg": "error", "data": False})
+            return error("设置字幕失败", 500, data=False)
     elif request.method == "POST":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+        return error("请使用 GET 方法提交数据", 400)

@@ -10,6 +10,7 @@ from utils.fun_config import (
     add_edit_rule, delete_rule, get_search_config, save_search_config,
     get_url_config_all, save_url_config
 )
+from utils.fun_response import success, error
 
 logger = logging.getLogger(__name__)
 config_bp = Blueprint('config', __name__)
@@ -21,18 +22,18 @@ config_bp = Blueprint('config', __name__)
 def submit_getrulelist():
     if request.method == "GET":
         data = get_rule_config()
-        return jsonify({"code": 200, "msg": "success", "data": data})
+        return success(data)
     elif request.method == "POST    ":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+        return error("请使用 GET 方法提交数据", 400)
 
 
 @config_bp.route("/getRuleInfoList", methods=["GET", "POST"])
 def submit_getruleinfolist():
     if request.method == "GET":
         data = get_rule_info()
-        return jsonify({"code": 200, "msg": "success", "data": data})
+        return success(data)
     elif request.method == "POST    ":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+        return error("请使用 GET 方法提交数据", 400)
 
 
 @config_bp.route("/matchRule", methods=["GET", "POST"])
@@ -40,14 +41,14 @@ def submit_matchrule():
     if request.method == "POST":
         data = request.json
         if 'rule_name' not in data:
-            return jsonify({"error": "缺少必要的参数 rule_name"}), 400
+            return error("缺少必要的参数 rule_name", 400)
         rule_name = data['rule_name']
         if update_used_rule(rule_name):
-            return jsonify({"code": 200, "msg": "success", "data": request_rule_msg(rule_name)})
+            return success(request_rule_msg(rule_name))
         else:
-            return jsonify({"code": 404, "msg": "error", "data": {"无效的规则名称": rule_name}})
+            return error("无效的规则名称", 404, data={"无效的规则名称": rule_name})
     elif request.method == "GET":
-        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+        return error("请使用 POST 方法提交数据", 400)
 
 
 @config_bp.route("/addEditRule", methods=["GET", "POST"])
@@ -56,11 +57,11 @@ def submit_addeditrule():
         data = request.json
         add_edit_rule(data)
         if add_edit_rule(data):
-            return jsonify({"code": 200, "msg": "success", "data": None})
+            return success()
         else:
-            return jsonify({"code": 404, "msg": "error", "data": "新增或修改失败"})
+            return error("新增或修改规则失败", 404)
     elif request.method == "GET":
-        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+        return error("请使用 POST 方法提交数据", 400)
 
 
 @config_bp.route("/deleteRule", methods=["GET", "POST"])
@@ -68,14 +69,14 @@ def submit_deleterule():
     if request.method == "POST":
         data = request.json
         if 'name' not in data:
-            return jsonify({"code": 400, "msg": "error", "data": "缺少规则名称"}), 400
+            return error("缺少规则名称", 400)
         rule_name = data['name']
         if delete_rule(rule_name):
-            return jsonify({"code": 200, "msg": "success", "data": None})
+            return success()
         else:
-            return jsonify({"code": 404, "msg": "error", "data": "规则不存在"})
+            return error("规则不存在", 404)
     elif request.method == "GET":
-        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+        return error("请使用 POST 方法提交数据", 400)
 
 
 # ============ 搜索配置 ============
@@ -84,9 +85,9 @@ def submit_deleterule():
 def submit_getsearchconfig():
     if request.method == "GET":
         data = get_search_config()
-        return jsonify({"code": 200, "msg": "success", "data": data})
+        return success(data)
     else:
-        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+        return error("请求方法不被允许", 405)
 
 
 @config_bp.route("/saveSearchConfig", methods=["POST"])
@@ -94,11 +95,11 @@ def submit_savesearchconfig():
     if request.method == "POST":
         data = request.json
         if save_search_config(data):
-            return jsonify({"code": 200, "msg": "success", "data": None})
+            return success()
         else:
-            return jsonify({"code": 500, "msg": "error", "data": "保存失败"})
+            return error("保存配置失败", 500)
     else:
-        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+        return error("请求方法不被允许", 405)
 
 
 # ============ 代理测试 ============
@@ -110,7 +111,7 @@ def submit_testproxy():
         proxy_host = data.get("proxy_host", "").strip()
         proxy_port = data.get("proxy_port", "").strip()
         if not proxy_host or not proxy_port:
-            return jsonify({"code": 400, "msg": "error", "data": "代理主机和端口不能为空"}), 400
+            return error("代理主机和端口不能为空", 400)
 
         logger.info(f"[testProxy] 开始测试代理服务器 - 主机: {proxy_host}, 端口: {proxy_port}")
         try:
@@ -136,9 +137,9 @@ def submit_testproxy():
                 return jsonify({"code": 200, "msg": "failed", "data": {"success": False, "error": f"请求异常: {str(e)}"}})
         except Exception as e:
             logger.error(f"[testProxy] 异常错误: {str(e)}", exc_info=True)
-            return jsonify({"code": 500, "msg": "error", "data": {"success": False, "error": str(e)}}), 500
+            return error("测试代理失败", 500, msg=str(e))
     else:
-        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+        return error("请求方法不被允许", 405)
 
 
 # ============ URL 配置 ============
@@ -147,10 +148,10 @@ def submit_testproxy():
 def submit_geturlconfig():
     try:
         config = get_url_config_all()
-        return jsonify({"code": 200, "msg": "success", "data": config})
+        return success(config)
     except Exception as e:
         logger.error(f"[getUrlConfig] 异常错误: {str(e)}", exc_info=True)
-        return jsonify({"code": 500, "msg": "error", "data": None}), 500
+        return error("获取URL配置失败", 500, msg=str(e))
 
 
 @config_bp.route("/saveUrlConfig", methods=["POST"])
@@ -161,14 +162,14 @@ def submit_saveurlconfig():
             if save_url_config(data):
                 fun_request.clear_qb_cookie_cache()
                 logger.info(f"[saveUrlConfig] 成功保存URL配置")
-                return jsonify({"code": 200, "msg": "success"})
+                return success()
             else:
-                return jsonify({"code": 500, "msg": "error"}), 500
+                return error("保存URL配置失败", 500)
         except Exception as e:
             logger.error(f"[saveUrlConfig] 异常错误: {str(e)}", exc_info=True)
-            return jsonify({"code": 500, "msg": "error"}), 500
+            return error("保存URL配置失败", 500, msg=str(e))
     else:
-        return jsonify({"code": 405, "msg": "请求方法不被允许"}), 405
+        return error("请求方法不被允许", 405)
 
 
 # ============ 后端连接测试 ============
@@ -186,7 +187,7 @@ def test_backend_connection():
                 username = data.get('username', 'admin')
                 password = data.get('password', '123456')
                 if not host or not port:
-                    return jsonify({"code": 400, "msg": "缺少必要参数"}), 400
+                    return error("缺少必要参数", 400)
 
                 import requests
                 try:
@@ -197,31 +198,31 @@ def test_backend_connection():
                     )
                     if response.status_code == 200 and response.text == 'Ok.':
                         logger.info(f"[testBackendConnection] qBittorrent 连接测试成功: {host}:{port}")
-                        return jsonify({"code": 200, "msg": "连接成功"})
+                        return success(None, msg="连接成功")
                     else:
-                        return jsonify({"code": 500, "msg": "登录失败，请检查用户名和密码"}), 500
+                        return error("qBittorrent登录失败", 500, msg="请检查用户名和密码")
                 except requests.exceptions.RequestException as e:
-                    return jsonify({"code": 500, "msg": f"连接失败: {str(e)}"}), 500
+                    return error("连接失败", 500, msg=str(e))
 
             elif service_type == 'dandanPlay':
                 host = data.get('host', '')
                 port = data.get('port', '')
                 if not host or not port:
-                    return jsonify({"code": 400, "msg": "缺少必要参数"}), 400
+                    return error("缺少必要参数", 400)
 
                 import requests
                 try:
                     response = requests.get(f"http://{host}:{port}/api/v1/welcome", timeout=10)
                     if response.status_code == 200:
                         logger.info(f"[testBackendConnection] dandanPlay 连接测试成功: {host}:{port}")
-                        return jsonify({"code": 200, "msg": "连接成功"})
+                        return success(None, msg="连接成功")
                     else:
-                        return jsonify({"code": 500, "msg": f"连接失败: HTTP {response.status_code}"}), 500
+                        return error("连接失败", 500, msg=f"HTTP {response.status_code}")
                 except requests.exceptions.RequestException as e:
-                    return jsonify({"code": 500, "msg": f"连接失败: {str(e)}"}), 500
+                    return error("连接失败", 500, msg=str(e))
             else:
-                return jsonify({"code": 400, "msg": "未知的服务类型"}), 400
+                return error("未知的服务类型", 400)
 
         except Exception as e:
             logger.error(f"[testBackendConnection] 异常错误: {str(e)}", exc_info=True)
-            return jsonify({"code": 500, "msg": f"测试失败: {str(e)}"}), 500
+            return error("测试连接失败", 500, msg=str(e))

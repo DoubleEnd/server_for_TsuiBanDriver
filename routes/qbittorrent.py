@@ -2,7 +2,7 @@
 import json
 import logging
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 
 from api.api_qBittorrent import (
     get_everything, post_everything, set_rule, get_version, get_webapiVersion,
@@ -13,6 +13,7 @@ from api.api_qBittorrent import (
 )
 from api.api_dandanPlay import welcome
 from utils.fun_config import get_app_info
+from utils.fun_response import success, error
 
 logger = logging.getLogger(__name__)
 qbittorrent_bp = Blueprint('qbittorrent', __name__)
@@ -21,24 +22,24 @@ qbittorrent_bp = Blueprint('qbittorrent', __name__)
 def _simple_post_response(result):
     """统一处理 POST 请求的响应：返回 status_code 和结果文本"""
     try:
-        return jsonify({"code": result.status_code,
-                        "msg": "success" if result.status_code == 200 else "error",
-                        "data": result.text if result.status_code == 200 else None})
+        if result.status_code == 200:
+            return success(result.text)
+        return error("qBittorrent 操作失败", result.status_code or 500, msg=result.text)
     except Exception:
-        return jsonify({"code": 500, "msg": "error", "data": None}), 500
+        return error("qBittorrent 操作失败", 500)
 
 
 def _simple_get_response(result):
     """统一处理 GET 请求的响应：返回 status_code 和 JSON 数据"""
     try:
         data = result.json()
-        return jsonify({"code": result.status_code,
-                        "msg": "success" if result.status_code == 200 else "error",
-                        "data": data})
+        if result.status_code == 200:
+            return success(data)
+        return error("qBittorrent 请求失败", result.status_code or 500, msg=result.text)
     except ValueError:
-        return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
+        return error("qBittorrent 无返回值", result.status_code or 500)
     except Exception:
-        return jsonify({"code": 500, "msg": "error", "data": None}), 500
+        return error("qBittorrent 请求失败", 500)
 
 
 # qBittorrent通用接口（保留兼容）
@@ -51,19 +52,19 @@ def submit_everything():
         config = request.args.to_dict()
         result = get_everything(config)
     else:
-        return jsonify({"code": 405, "msg": "请求方法不被允许", "data": None}), 405
+        return error("请求方法不被允许", 405)
 
     try:
         data = result.json()
     except ValueError:
-        return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
+        return error("qBittorrent 无返回值", result.status_code or 500)
 
     if data:
-        return jsonify({"code": result.status_code,
-                        "msg": "success" if result.status_code == 200 else "error",
-                        "data": data.get("data") if request.method == "POST" else data})
+        if result.status_code == 200:
+            return success(data.get("data") if request.method == "POST" else data)
+        return error("qBittorrent 请求失败", result.status_code or 500, msg=result.text)
     else:
-        return jsonify({"code": result.status_code, "msg": "无返回值", "data": None})
+        return error("qBittorrent 无返回值", result.status_code or 500)
 
 
 # RSS 订阅
@@ -185,10 +186,11 @@ def submit_setrule():
         data_dict = request.json
         data_dict['ruleDef'] = json.dumps(data_dict['ruleDef'])
         result = set_rule(data_dict)
-        return jsonify(
-            {"code": result.status_code, "msg": "success" if result.status_code == 200 else "error", "data": None})
+        if result.status_code == 200:
+            return success()
+        return error("保存规则失败", result.status_code or 500, msg=result.text)
     elif request.method == "GET":
-        return jsonify({"error": "请使用 POST 方法提交数据"}), 400
+        return error("请使用 POST 方法提交数据", 400)
 
 
 # 版本信息
@@ -207,11 +209,9 @@ def submit_allversion():
             if info["name"] == "dandanPlay版本":
                 info["value"] = dandan_play_version
         data = {"app_info": app_info}
-        return jsonify({"code": get_version('').status_code and get_webapiVersion('').status_code,
-                        "msg": "success" if get_version('').status_code and get_webapiVersion('').status_code == 200 else "error",
-                        "data": data})
+        return success(data)
     elif request.method == "POST":
-        return jsonify({"error": "请使用 GET 方法提交数据"}), 400
+        return error("请使用 GET 方法提交数据", 400)
 
 
 @qbittorrent_bp.route("/getBackendVersions", methods=["GET"])
@@ -236,7 +236,7 @@ def submit_getbackendversions():
                 versions["dandanPlay"] = dandan_res.json().get('version', '')
         except Exception as e:
             logger.warning(f"[getBackendVersions] 获取dandanPlay版本失败: {str(e)}")
-        return jsonify({"code": 200, "msg": "success", "data": versions})
+        return success(versions)
     except Exception as e:
         logger.error(f"[getBackendVersions] 异常错误: {str(e)}", exc_info=True)
-        return jsonify({"code": 500, "msg": "error", "data": None}), 500
+        return error("获取版本信息失败", 500, msg=str(e))
