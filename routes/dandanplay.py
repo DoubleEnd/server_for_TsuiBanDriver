@@ -2,7 +2,7 @@
 import logging
 import requests
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, Response, request, jsonify, stream_with_context
 
 from api.api_dandanPlay import bangumi, bangumiList, getSubtitle, library, getStreamUrl, getComment, getImage
 from crawler.get_subtitle import get_subtitle_list
@@ -91,81 +91,101 @@ def submit_getSubtitle():
 
 
 # 视频流相关辅助函数
-def _is_same_network(ip1, ip2, netmask='255.255.255.0'):
-    import ipaddress
-    try:
-        ip1 = ip1.strip()
-        ip2 = ip2.strip()
-        if ip1 == ip2:
-            return True
-        addr1 = ipaddress.ip_address(ip1)
-        addr2 = ipaddress.ip_address(ip2)
-        network = ipaddress.ip_network(f"{ip1}/{netmask}", strict=False)
-        return addr2 in network
-    except Exception as e:
-        logger.warning(f"[is_same_network] IP网段检查失败: {e}")
-        return False
+# 视频不再由前端直连 dandanPlay，而是统一走本后端的 /yzr/video/<videoId> 代理，
+# 这样无论局域网还是外网访问，前端拿到的都是同一个相对地址。
+_PROXY_PATH_PREFIX = "/yzr/video"
+
+# 转发给 dandanPlay 的响应头
+_STREAM_PASS_HEADERS = (
+    "Content-Type",
+    "Content-Length",
+    "Content-Range",
+    "Accept-Ranges",
+    "Last-Modified",
+    "ETag",
+)
 
 
-def _get_local_ip():
-    import socket
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(2)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception as e:
-        logger.warning(f"[stream] 获取本机IP失败: {e}")
-        return "127.0.0.1"
+def _build_stream_proxy_url(video_id):
+    """构造对外的视频流代理地址（相对路径，前端自动带上当前访问的 host）"""
+    return f"{_PROXY_PATH_PREFIX}/{video_id}"
 
 
 @dandanplay_bp.route("/stream", methods=["GET"])
 def submit_stream():
-    if request.method == "GET":
-        params = request.args.to_dict()
-        if 'videoId' not in params:
-            return error("缺少videoId参数", 400)
+    """返回视频流地址，不再依赖客户端 IP 判断"""
+    video_id = request.args.get('videoId')
+    if not video_id:
+        return error("缺少videoId参数", 400)
+    stream_url = _build_stream_proxy_url(video_id)
+    logger.info(f"[stream] 视频流代理地址: {stream_url}")
+    return jsonify({"url": stream_url}), 200
 
-        video_id = params['videoId']
-        client_ip = request.headers.get('X-Real-IP') or request.headers.get('X-Forwarded-For', request.remote_addr)
-        if ',' in client_ip:
-            client_ip = client_ip.split(',')[0].strip()
-        logger.info(f"[stream] 获取视频流URL: {video_id}, 客户端IP: {client_ip}")
 
+@dandanplay_bp.route("/video/<video_id>", methods=["GET", "HEAD"])
+def submit_video(video_id):
+    """视频流代理：透传 Range 请求，保证播放器可拖动进度"""
+    from utils.fun_config import get_url_config
+    dandan_play_base_url = get_url_config().get('dandanPlay_BASE_URL', 'http://127.0.0.1:8888')
+    upstream_url = f"{dandan_play_base_url}/api/v1/stream/id/{video_id}"
+
+    # 透传 Range，dandanPlay 才会返回 206 与对应片段
+    headers = {}
+    if request.headers.get('Range'):
+        headers['Range'] = request.headers['Range']
+    if request.headers.get('If-Range'):
+        headers['If-Range'] = request.headers['If-Range']
+
+    try:
+        upstream = requests.request(
+            method=request.method,
+            url=upstream_url,
+            headers=headers,
+            stream=True,
+            timeout=(10, 60),
+        )
+    except requests.RequestException as e:
+        logger.error(f"[video] 请求上游视频流失败: {e}")
+        return error("获取视频流失败", 502, msg=str(e))
+
+    if upstream.status_code >= 400:
+        logger.error(f"[video] 上游返回错误: {upstream.status_code}")
+        upstream.close()
+        return error("获取视频流失败", upstream.status_code)
+
+    resp_headers = {}
+    for key in _STREAM_PASS_HEADERS:
+        value = upstream.headers.get(key)
+        if value:
+            resp_headers[key] = value
+    resp_headers.setdefault('Accept-Ranges', 'bytes')
+
+    logger.info(
+        f"[video] 代理视频流 {video_id}: "
+        f"Range={request.headers.get('Range', '无')} -> {upstream.status_code}"
+    )
+
+    if request.method == "HEAD":
+        upstream.close()
+        return Response(status=upstream.status_code, headers=resp_headers)
+
+    def generate():
         try:
-            from utils.fun_config import get_url_config
-            url_config = get_url_config()
-            dandan_play_base_url = url_config.get('dandanPlay_BASE_URL', 'http://127.0.0.1:8888')
-            backend_ip = _get_local_ip()
+            for chunk in upstream.iter_content(chunk_size=64 * 1024):
+                if chunk:
+                    yield chunk
+        except requests.RequestException as e:
+            # 客户端中断/上游断开属于常见情况，仅记录
+            logger.warning(f"[video] 视频流传输中断 {video_id}: {e}")
+        finally:
+            upstream.close()
 
-            stream_url = f"{dandan_play_base_url}/api/v1/stream/id/{video_id}"
-
-            from urllib.parse import urlparse
-            parsed_url = urlparse(stream_url)
-            video_server_ip = parsed_url.hostname
-            logger.info(f"[stream] 原始视频流URL: {stream_url}")
-            logger.info(f"[stream] 视频服务器IP: {video_server_ip}")
-            logger.info(f"[stream] Python后端主机IP: {backend_ip}")
-
-            if _is_same_network(client_ip, video_server_ip):
-                logger.info(f"[stream] 客户端IP {client_ip} 与视频服务器IP {video_server_ip} 在同一网段，使用原始URL")
-            else:
-                logger.info(f"[stream] 客户端IP {client_ip} 与视频服务器IP {video_server_ip} 不在同一网段")
-                if _is_same_network(client_ip, backend_ip):
-                    logger.info(f"[stream] 客户端IP {client_ip} 与后端IP {backend_ip} 在同一网段，替换视频URL的IP")
-                    stream_url = stream_url.replace(video_server_ip, backend_ip)
-                    logger.info(f"[stream] 已替换IP为: {stream_url}")
-                else:
-                    logger.warning(f"[stream] 客户端IP {client_ip} 与后端IP {backend_ip} 也不在同一网段，保持原始URL")
-
-            return jsonify({"url": stream_url}), 200
-        except Exception as e:
-            logger.error(f"[stream] 异常错误: {str(e)}", exc_info=True)
-            return error("获取视频流失败", 500, msg=str(e))
-    else:
-        return error("请求方法不被允许", 405)
+    return Response(
+        stream_with_context(generate()),
+        status=upstream.status_code,
+        headers=resp_headers,
+        direct_passthrough=True,
+    )
 
 
 @dandanplay_bp.route("/comment", methods=["GET"])
