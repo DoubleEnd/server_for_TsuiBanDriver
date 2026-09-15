@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from utils.config_manager import get_config_path, load_json_safe, save_json_safe
@@ -9,6 +10,7 @@ ai_config_path = get_config_path('ai_config.json')
 ai_chat_config_path = get_config_path('ai_chat_config.json')
 search_config_path = get_config_path('search_config.json')
 app_info_path = get_config_path('app_info.json')
+auth_config_path = get_config_path('auth_config.json')
 
 DEFAULT_URL_CONFIG = {
     "qBittorrent_host": "127.0.0.1",
@@ -48,6 +50,14 @@ DEFAULT_AI_CHAT_CONFIG = {
     "model": "deepseek-v4-pro"
 }
 
+DEFAULT_AUTH_CONFIG = {
+    "auth_enabled": True,
+    "auth_password": "admin123"
+}
+
+# 生成访问令牌用的固定盐值，修改密码后旧令牌自动失效
+_AUTH_TOKEN_SALT = "tsuiban_driver_auth"
+
 DEFAULT_APP_INFO = [
     { "name": "后端版本", "value": "1.0.0" },
     { "name": "作者", "value": "@DoubleEnd", "href": "https://github.com/DoubleEnd"},
@@ -73,6 +83,7 @@ ensure_config_file(rule_info_path, {})
 ensure_config_file(ai_config_path, DEFAULT_AI_CONFIG)
 ensure_config_file(ai_chat_config_path, DEFAULT_AI_CHAT_CONFIG)
 ensure_config_file(app_info_path, DEFAULT_APP_INFO)
+ensure_config_file(auth_config_path, DEFAULT_AUTH_CONFIG)
 
 def load_json(file_path):
     data = load_json_safe(file_path)
@@ -249,3 +260,41 @@ def save_url_config(data):
     }
     save_json_safe(url_config_path, url_config)
     return True
+
+def get_auth_config():
+    """获取密码保护配置，缺失字段自动用默认值补全"""
+    config = load_json(auth_config_path)
+    if not config:
+        config = {}
+    changed = False
+    for key, default_value in DEFAULT_AUTH_CONFIG.items():
+        if key not in config:
+            config[key] = default_value
+            changed = True
+    if changed:
+        save_json_safe(auth_config_path, config)
+    return config
+
+def save_auth_config(data):
+    """保存密码保护配置，密码留空表示不修改"""
+    config = get_auth_config()
+    if "auth_enabled" in data:
+        config["auth_enabled"] = bool(data["auth_enabled"])
+    if data.get("auth_password"):
+        config["auth_password"] = str(data["auth_password"])
+    save_json_safe(auth_config_path, config)
+    return True
+
+def get_auth_token():
+    """由当前密码推导访问令牌"""
+    password = get_auth_config()["auth_password"]
+    return hashlib.sha256(f"{password}{_AUTH_TOKEN_SALT}".encode('utf-8')).hexdigest()
+
+def check_auth_token(token):
+    """校验访问令牌，未开启密码保护时直接放行"""
+    if not get_auth_config()["auth_enabled"]:
+        return True
+    if not token:
+        return False
+    return token == get_auth_token()
+
