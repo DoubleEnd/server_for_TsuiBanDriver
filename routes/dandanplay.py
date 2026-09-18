@@ -4,7 +4,7 @@ import requests
 
 from flask import Blueprint, Response, request, jsonify, stream_with_context
 
-from api.api_dandanPlay import bangumi, bangumiList, getSubtitle, library, getStreamUrl, getComment, getImage
+from api.api_dandanPlay import bangumi, bangumiList, getSubtitle, library, getStreamUrl, getComment, getImage, search_library
 from crawler.get_subtitle import get_subtitle_list
 from utils import fun_request
 from utils.fun_response import success, error
@@ -47,19 +47,9 @@ def submit_bangumi_search():
         keyword = args.get('keyword', '')
         logger.info(f"[bangumi/search] 类型: {nav_type}, 关键字: {keyword}")
         try:
-            result = bangumi(params=nav_type)
-            if not result:
+            data = search_library(keyword=keyword, nav=nav_type)
+            if data is None:
                 return error("获取番剧列表失败", 500, data=[])
-            try:
-                data = result.json()
-            except Exception:
-                data = []
-            if not isinstance(data, list):
-                data = []
-            keyword_lower = keyword.strip().lower()
-            if keyword_lower:
-                data = [item for item in data
-                        if keyword_lower in str(item.get('Title', '')).lower()]
             return success(data)
         except Exception as e:
             logger.error(f"[bangumi/search] 异常错误: {str(e)}", exc_info=True)

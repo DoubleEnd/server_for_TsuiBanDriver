@@ -47,7 +47,8 @@ DEFAULT_AI_CONFIG = {
 DEFAULT_AI_CHAT_CONFIG = {
     "api_key": "",
     "base_url": "https://api.deepseek.com",
-    "model": "deepseek-v4-pro"
+    "model": "deepseek-v4-pro",
+    "max_tool_rounds": 50
 }
 
 DEFAULT_AUTH_CONFIG = {
@@ -207,12 +208,13 @@ def get_ai_chat_config():
     return config
 
 def save_ai_chat_config(data):
-    """保存 AI 对话配置"""
-    config = {
-        "api_key": data.get("api_key", DEFAULT_AI_CHAT_CONFIG["api_key"]),
-        "base_url": data.get("base_url", DEFAULT_AI_CHAT_CONFIG["base_url"]),
-        "model": data.get("model", DEFAULT_AI_CHAT_CONFIG["model"])
-    }
+    """保存 AI 对话配置，未提供的字段保持原值"""
+    config = get_ai_chat_config()
+    for key in ("api_key", "base_url", "model"):
+        if key in data:
+            config[key] = data[key]
+    if data.get("max_tool_rounds") is not None:
+        config["max_tool_rounds"] = int(data["max_tool_rounds"])
     save_json_safe(ai_chat_config_path, config)
     return True
 

@@ -1,5 +1,6 @@
 import json
 import logging
+from urllib.parse import quote
 
 import requests
 import xmltodict
@@ -10,17 +11,25 @@ from utils.fun_request import request, get_request_config
 logger = logging.getLogger(__name__)
 
 
+def build_rss_search_url(banguminame, url_encode=False):
+    """按当前使用的规则拼接 RSS 搜索链接
+
+    banguminame 支持用空格拼接多个筛选关键词（如「番剧名 字幕组 1080p」），
+    站点会按空格拆词筛选，从而把结果限定到符合要求的条目。
+    """
+    rule = match_rule()
+    keyword = quote(banguminame, safe="") if url_encode else banguminame
+    return f"{rule['base_url']}{rule['rss_path']}{rule['query_params_bangumi_name']}{keyword}{rule.get('rss_suffix', '')}"
+
+
 #获取id列表
 def get_info_list(banguminame):
     rule = match_rule()
     try:
         data = {}
         base_url = rule["base_url"]
-        rss_path = rule["rss_path"]
         query_params_bangumi_name = rule["query_params_bangumi_name"]
-        rss_suffix = rule["rss_suffix"]
-
-        rss_url = f"{base_url}{rss_path}{query_params_bangumi_name}{banguminame}{rss_suffix}"
+        rss_url = build_rss_search_url(banguminame)
         logger.info(f"[get_info_list] 搜索URL: {rss_url}")
         # print(rss_url)
 
