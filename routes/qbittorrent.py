@@ -9,7 +9,7 @@ from api.api_qBittorrent import (
     addFeed, get_rss_items, get_rss_rules, add_torrents, get_torrents_info,
     remove_item, refresh_item, move_item, mark_as_read,
     delete_torrents, matching_articles, remove_rule, set_location,
-    get_sync_maindata
+    get_sync_maindata, torrents_action
 )
 from api.api_dandanPlay import welcome
 from utils.fun_config import get_app_info
@@ -168,6 +168,17 @@ def submit_removerule():
 def submit_setlocation():
     data = request.json
     result = set_location(data)
+    return _simple_post_response(result)
+
+
+# 种子动作：暂停/启动/强制启动/强制校验/重新汇报
+@qbittorrent_bp.route("/torrentsAction", methods=["POST"])
+def submit_torrentsaction():
+    data = request.json or {}
+    action = data.pop("action", "")
+    result = torrents_action(action, data)
+    if result is None:
+        return error("不支持的操作", 400, msg=action)
     return _simple_post_response(result)
 
 

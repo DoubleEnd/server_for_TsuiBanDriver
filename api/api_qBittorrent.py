@@ -109,6 +109,32 @@ def set_location(data):
         "data": data
     })
 
+# 种子动作 -> qBittorrent 接口（qBittorrent 5.0 起 pause/resume 改名为 stop/start，做回退兼容）
+_TORRENT_ACTION_URLS = {
+    "pause": ("torrents/pause", "torrents/stop"),
+    "resume": ("torrents/resume", "torrents/start"),
+    "forceStart": ("torrents/setForceStart",),
+    "recheck": ("torrents/recheck",),
+    "reannounce": ("torrents/reannounce",),
+}
+
+def torrents_action(action, data):
+    """执行种子动作（暂停/启动/强制启动/强制校验/重新汇报），动作不支持时返回 None"""
+    urls = _TORRENT_ACTION_URLS.get(action)
+    if not urls:
+        return None
+    result = None
+    for url in urls:
+        result = api_qBittorrent_request({
+            "url": url,
+            "method": "post",
+            "data": data
+        })
+        # 404 说明当前 qBittorrent 版本不认这个接口名，尝试下一个（如 5.0 的改名）
+        if result.status_code != 404:
+            return result
+    return result
+
 def get_sync_maindata(params=None):
     return api_qBittorrent_request({
         "url": "sync/maindata",
