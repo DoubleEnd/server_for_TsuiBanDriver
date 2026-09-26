@@ -198,6 +198,26 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "delete_rss_subscription",
+            "description": (
+                "删除qBittorrent中已订阅的RSS订阅源。feed_path 需与 get_rss_feeds 返回的订阅源名称完全一致，"
+                "删除前应先调用 get_rss_feeds 确认名称，且必须经用户确认后再执行"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "feed_path": {
+                        "type": "string",
+                        "description": "要删除的订阅源名称（即 get_rss_feeds 返回的 feeds 列表中的名称）"
+                    }
+                },
+                "required": ["feed_path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "set_rss_download_rule",
             "description": "为qBittorrent的RSS订阅设置自动下载规则。需要规则名称和规则定义(JSON格式)",
             "parameters": {
@@ -225,6 +245,26 @@ TOOLS = [
                 "type": "object",
                 "properties": {},
                 "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_rss_download_rule",
+            "description": (
+                "删除qBittorrent中已存在的RSS下载规则。rule_name 需与 get_rss_rules 返回的规则名称完全一致，"
+                "删除前应先调用 get_rss_rules 确认名称，且必须经用户确认后再执行"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "rule_name": {
+                        "type": "string",
+                        "description": "要删除的规则名称（即 get_rss_rules 返回的规则名）"
+                    }
+                },
+                "required": ["rule_name"]
             }
         }
     },
@@ -509,6 +549,26 @@ def _execute_tool(name, arguments):
             }, ensure_ascii=False)
             return ai_text, "SubscribeTable", feeds_data
 
+        elif name == "delete_rss_subscription":
+            from api.api_qBittorrent import remove_item, get_rss_items
+            feed_path = arguments.get("feed_path", "")
+            if not feed_path:
+                return "请提供要删除的订阅源名称", None, {"message": "请提供要删除的订阅源名称"}
+            feeds = []
+            items_result = get_rss_items()
+            if items_result.status_code == 200:
+                try:
+                    feeds = list((items_result.json() or {}).keys())
+                except Exception:
+                    feeds = []
+            if feeds and feed_path not in feeds:
+                tip = f"订阅源 '{feed_path}' 不存在，当前订阅源: {', '.join(feeds)}"
+                return tip, None, {"message": tip}
+            result = remove_item({"path": feed_path})
+            if result.status_code == 200:
+                return f"已成功删除RSS订阅源: {feed_path}", None, {"message": f"已删除订阅源: {feed_path}"}
+            return f"删除订阅源失败 (HTTP {result.status_code})", None, {"message": f"删除失败: HTTP {result.status_code}"}
+
         elif name == "set_rss_download_rule":
             from api.api_qBittorrent import set_rule
             import json as _json
@@ -538,6 +598,26 @@ def _execute_tool(name, arguments):
                 except Exception:
                     return "获取RSS规则失败，无法解析返回数据", None, {"message": "获取RSS规则失败"}
             return f"获取RSS规则失败 (HTTP {result.status_code})", None, {"message": f"获取失败: HTTP {result.status_code}"}
+
+        elif name == "delete_rss_download_rule":
+            from api.api_qBittorrent import remove_rule, get_rss_rules
+            rule_name = arguments.get("rule_name", "")
+            if not rule_name:
+                return "请提供要删除的规则名称", None, {"message": "请提供要删除的规则名称"}
+            rule_names = []
+            rules_result = get_rss_rules()
+            if rules_result.status_code == 200:
+                try:
+                    rule_names = list((rules_result.json() or {}).keys())
+                except Exception:
+                    rule_names = []
+            if rule_names and rule_name not in rule_names:
+                tip = f"规则 '{rule_name}' 不存在，当前规则: {', '.join(rule_names)}"
+                return tip, None, {"message": tip}
+            result = remove_rule({"ruleName": rule_name})
+            if result.status_code == 200:
+                return f"已成功删除RSS下载规则: {rule_name}", None, {"message": f"已删除规则: {rule_name}"}
+            return f"删除RSS下载规则失败 (HTTP {result.status_code})", None, {"message": f"删除失败: HTTP {result.status_code}"}
 
         elif name == "add_download_task":
             from api.api_qBittorrent import add_torrents
@@ -681,9 +761,14 @@ SYSTEM_PROMPT = (
     "- get_subtitle_list：查看某个视频可用的字幕（需视频ID）\n"
     "- add_rss_subscription：添加一个已知的 RSS 链接\n"
     "- get_rss_feeds：查看已订阅的 RSS 源与条目\n"
+    "- delete_rss_subscription：删除某个已订阅的 RSS 源（先用 get_rss_feeds 确认名称，再经用户确认后执行）\n"
+    "- get_rss_rules：查看已有的 RSS 下载规则\n"
+    "- set_rss_download_rule：新增或修改 RSS 下载规则\n"
+    "- delete_rss_download_rule：删除某条 RSS 下载规则（先用 get_rss_rules 确认名称，再经用户确认后执行）\n"
     "- add_download_task：添加磁力/种子下载任务\n"
     "- get_download_status：查看下载进度\n"
     "- match_download_rule：切换使用的 RSS 站点\n"
+    "删除类工具属于不可逆操作：必须先查询并确认要删除的对象名称，向用户说明后获得确认才能调用。\n"
     "\n"
     "涉及番剧、订阅、下载的问题必须先用工具查询，不要凭记忆编造结果；"
     "每次调用工具前用一句话说明你的判断依据；回答使用与用户相同的语言。"
@@ -691,8 +776,15 @@ SYSTEM_PROMPT = (
 
 
 # ---------- 核心对话逻辑 ----------
-def chat(message, history):
-    """返回生成器，逐个产出 SSE 事件。"""
+def chat(message, conversation_id=None):
+    """返回生成器，逐个产出 SSE 事件。
+    conversation_id: 对话 ID，传 None 表示新对话（后端自动创建）。
+    对话完成后自动保存完整上下文（含 tool_calls / tool 结果），下次继续对话时 AI 无需重复调用工具。
+    """
+    from utils.fun_conversation import (
+        get_context_messages, create_conversation, save_conversation_turn
+    )
+
     if not message:
         yield {"type": "error", "content": "请输入消息内容"}
         yield {"type": "done"}
@@ -709,15 +801,24 @@ def chat(message, history):
         yield {"type": "done"}
         return
 
-    logger.info(f"[aiChat] 收到消息: {message}, 历史条数: {len(history)}, 最大工具轮次: {max_tool_rounds}")
+    # 确保有对话 ID
+    is_new_conv = not conversation_id
+    if is_new_conv:
+        conversation_id = create_conversation()
+    yield {"type": "conversation_id", "content": conversation_id}
+
+    # 加载历史上下文（含 tool_calls / tool 结果，AI 无需重复调用工具）
+    context_messages = get_context_messages(conversation_id) if not is_new_conv else []
+    logger.info(f"[aiChat] 对话 {conversation_id} | 新建: {is_new_conv} | 上下文消息数: {len(context_messages)} | 新消息: {message[:50]}")
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    for item in (history or []):
-        role = item.get("role", "")
-        content = item.get("content", "")
-        if role in ("user", "assistant") and content:
-            messages.append({"role": role, "content": content})
+    messages.extend(context_messages)
     messages.append({"role": "user", "content": message})
+
+    # 本轮新增的展示项（用于前端渲染 & 持久化）
+    display_items = []
+    # 本轮新增的上下文消息（用户消息 + AI 回复 + 工具调用/结果）
+    new_context = [{"role": "user", "content": message}]
 
     yield {"type": "thinking", "content": "正在分析你的需求..."}
 
@@ -753,10 +854,12 @@ def chat(message, history):
                 return
 
             aggregated_tool_calls = None
+            round_text_parts = []
 
             for event in _aggregate_stream_events(resp):
                 if event["type"] == "reply_chunk":
                     full_reply_parts.append(event["content"])
+                    round_text_parts.append(event["content"])
                     yield event
                 elif event["type"] == "_tool_calls_aggregated":
                     aggregated_tool_calls = event["tool_calls"]
@@ -771,11 +874,13 @@ def chat(message, history):
                         "function": tc["function"]
                     })
 
-                messages.append({
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": normalized
-                })
+                # assistant 消息：保留工具调用前的文本内容
+                assistant_msg = {"role": "assistant", "content": None, "tool_calls": normalized}
+                round_text = "".join(round_text_parts)
+                if round_text:
+                    assistant_msg["content"] = round_text
+                messages.append(assistant_msg)
+                new_context.append(assistant_msg)
 
                 for tc in aggregated_tool_calls:
                     func_name = tc["function"]["name"]
@@ -787,6 +892,13 @@ def chat(message, history):
                     yield {"type": "thinking", "content": f"调用工具: {func_name}"}
                     yield {"type": "tool_call", "name": func_name, "arguments": func_args}
 
+                    # 记录展示项
+                    display_items.append({
+                        "type": "tool_call",
+                        "name": func_name,
+                        "args": json.dumps(func_args, ensure_ascii=False, indent=2)
+                    })
+
                     ai_text, component, data = _execute_tool(func_name, func_args)
                     yield {
                         "type": "tool_result",
@@ -796,11 +908,21 @@ def chat(message, history):
                         "data": data
                     }
 
-                    messages.append({
+                    # 记录展示项
+                    display_items.append({
+                        "type": "tool_result",
+                        "result": ai_text,
+                        "component": component,
+                        "data": data
+                    })
+
+                    tool_msg = {
                         "role": "tool",
                         "tool_call_id": tc.get("id", ""),
                         "content": ai_text
-                    })
+                    }
+                    messages.append(tool_msg)
+                    new_context.append(tool_msg)
 
                 logger.info(f"[aiChat] 第 {round_num + 1} 轮工具调用完成，继续对话...")
                 continue
@@ -810,8 +932,22 @@ def chat(message, history):
             if not full_reply:
                 full_reply = "抱歉，我没有获取到有效的回复。"
 
+            # 保存最终 AI 回复到上下文
+            final_msg = {"role": "assistant", "content": full_reply}
+            messages.append(final_msg)
+            new_context.append(final_msg)
+
+            # 记录展示项
+            display_items.append({"type": "text", "content": full_reply})
+
             yield {"type": "reply_complete", "content": full_reply}
-            logger.info(f"[aiChat] 对话完成 - 回复长度: {len(full_reply)}")
+
+            # 保存完整对话上下文
+            all_context = context_messages + new_context
+            title = message[:30] if is_new_conv else None
+            save_conversation_turn(conversation_id, message, all_context, display_items, title=title)
+
+            logger.info(f"[aiChat] 对话完成 - 回复长度: {len(full_reply)}, 上下文总消息数: {len(all_context)}")
             yield {"type": "done"}
             return
 

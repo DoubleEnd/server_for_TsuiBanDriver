@@ -6,7 +6,6 @@ from utils.config_manager import get_config_path, load_json_safe, save_json_safe
 rule_config_path = get_config_path('rule_config.json')
 rule_info_path = get_config_path('rule_info.json')
 url_config_path = get_config_path('url_config.json')
-ai_config_path = get_config_path('ai_config.json')
 ai_chat_config_path = get_config_path('ai_chat_config.json')
 search_config_path = get_config_path('search_config.json')
 app_info_path = get_config_path('app_info.json')
@@ -35,13 +34,6 @@ DEFAULT_RULE_CONFIG = {
         "title": ""
     },
     "rule_list": []
-}
-
-DEFAULT_AI_CONFIG = {
-    "valid_models": ["tiny", "small", "medium"],
-    "valid_devices": ["cpu", "gpu"],
-    "default_model": "tiny",
-    "default_device": "cpu"
 }
 
 DEFAULT_AI_CHAT_CONFIG = {
@@ -81,7 +73,6 @@ ensure_config_file(url_config_path, DEFAULT_URL_CONFIG)
 ensure_config_file(search_config_path, DEFAULT_SEARCH_CONFIG)
 ensure_config_file(rule_config_path, DEFAULT_RULE_CONFIG)
 ensure_config_file(rule_info_path, {})
-ensure_config_file(ai_config_path, DEFAULT_AI_CONFIG)
 ensure_config_file(ai_chat_config_path, DEFAULT_AI_CHAT_CONFIG)
 ensure_config_file(app_info_path, DEFAULT_APP_INFO)
 ensure_config_file(auth_config_path, DEFAULT_AUTH_CONFIG)
@@ -174,24 +165,6 @@ def delete_rule(rule_name):
     save_json_safe(rule_config_path, rule_config)
     save_json_safe(rule_info_path, rule_info)
     return is_exist
-
-def add_edit_ai_config(data):
-    ai_config = load_json(ai_config_path)
-    key = data.get("ai_config_key")
-    value = data.get("ai_config_value")
-    if key and value:
-        ai_config[key] = value
-        save_json_safe(ai_config_path, ai_config)
-        return True
-    return False
-
-def delete_ai_config(key):
-    ai_config = load_json(ai_config_path)
-    if key in ai_config:
-        del ai_config[key]
-        save_json_safe(ai_config_path, ai_config)
-        return True
-    return False
 
 def get_ai_chat_config():
     """获取 AI 对话配置，缺失字段自动用默认值补全"""
