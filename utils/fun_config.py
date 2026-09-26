@@ -14,8 +14,8 @@ auth_config_path = get_config_path('auth_config.json')
 DEFAULT_URL_CONFIG = {
     "qBittorrent_host": "127.0.0.1",
     "qBittorrent_port": 8080,
-    "qBittorrent_username": "admin",
-    "qBittorrent_password": "123456",
+    "qBittorrent_username": "",
+    "qBittorrent_password": "",
     "dandanPlay_host": "127.0.0.1",
     "dandanPlay_port": 8888
 }
@@ -39,7 +39,7 @@ DEFAULT_RULE_CONFIG = {
 DEFAULT_AI_CHAT_CONFIG = {
     "api_key": "",
     "base_url": "https://api.deepseek.com",
-    "model": "deepseek-v4-pro",
+    "model": "deepseek-v4-flash",
     "max_tool_rounds": 50
 }
 
