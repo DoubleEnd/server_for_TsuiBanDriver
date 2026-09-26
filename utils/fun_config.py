@@ -44,7 +44,7 @@ DEFAULT_AI_CHAT_CONFIG = {
 }
 
 DEFAULT_AUTH_CONFIG = {
-    "auth_enabled": True,
+    "auth_enabled": False,
     "auth_password": "admin123"
 }
 
