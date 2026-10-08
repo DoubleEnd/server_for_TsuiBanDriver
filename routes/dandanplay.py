@@ -1,12 +1,15 @@
 # dandanPlay 相关路由
 import logging
+import mimetypes
+import os
 import requests
+from urllib.parse import quote
 
-from flask import Blueprint, Response, request, jsonify, stream_with_context
+from flask import Blueprint, Response, request, jsonify, send_file, stream_with_context
 
-from api.api_dandanPlay import bangumi, bangumiList, getSubtitle, library, getStreamUrl, getComment, getImage, search_library
-from crawler.get_subtitle import get_subtitle_list
-from utils import fun_request
+from api.api_dandanPlay import bangumi, bangumiList, library, getComment, getImage, search_library
+from utils import fun_subtitle
+from utils.fun_thumbnail import get_poster, get_sprite, get_sprite_info
 from utils.fun_response import success, error
 
 logger = logging.getLogger(__name__)
@@ -50,7 +53,7 @@ def submit_bangumi_search():
             data = search_library(keyword=keyword, nav=nav_type)
             if data is None:
                 return error("获取番剧列表失败", 500, data=[])
-            return success(data)
+            return success(_simplify_bangumi_list(data))
         except Exception as e:
             logger.error(f"[bangumi/search] 异常错误: {str(e)}", exc_info=True)
             return error("获取番剧列表失败", 500, msg=str(e), data=[])
@@ -63,27 +66,58 @@ def submit_bangumiList():
         params = request.args.to_dict()
         result = bangumiList(params=params['params'])
         if result:
-            return result.text
+            try:
+                data = result.json()
+            except ValueError:
+                return error("番剧详情数据解析失败", 500)
+
+            simplified = _simplify_bangumi_detail(data)
+            return jsonify(simplified)
         else:
             return error("获取番剧详情失败", 500)
     elif request.method == "POST":
         return error("请使用 GET 方法提交数据", 400)
 
 
-@dandanplay_bp.route("/getSubtitle", methods=["GET", "POST"])
+@dandanplay_bp.route("/getSubtitle", methods=["GET"])
 def submit_getSubtitle():
-    if request.method == "GET":
-        params = request.args.to_dict()
-        data = getSubtitle(params=params['videoId'])
-        return data
-    elif request.method == "POST":
-        return error("请使用 GET 方法提交数据", 400)
+    """返回本地字幕内容：subFile 为外挂字幕文件；videoPath + stream 为视频内封字幕流"""
+    sub_file = request.args.get('subFile')
+    video_path = request.args.get('videoPath')
+    stream_index = request.args.get('stream')
+
+    if sub_file:
+        if not os.path.isfile(sub_file):
+            return error("字幕文件不存在", 404)
+        text = fun_subtitle.read_external_subtitle(sub_file)
+    elif video_path and stream_index is not None:
+        if not os.path.isfile(video_path):
+            return error("视频文件不存在", 404)
+        try:
+            text = fun_subtitle.extract_internal_subtitle(video_path, stream_index)
+        except RuntimeError as e:
+            return error("获取字幕内容失败", 500, msg=str(e))
+    else:
+        return error("缺少subFile或videoPath、stream参数", 400)
+
+    if text is None:
+        return error("获取字幕内容失败", 500)
+    return Response(text, content_type="text/plain; charset=utf-8")
 
 
 # 视频流相关辅助函数
 # 视频不再由前端直连 dandanPlay，而是统一走本后端的 /yzr/video/<videoId> 代理，
 # 这样无论局域网还是外网访问，前端拿到的都是同一个相对地址。
 _PROXY_PATH_PREFIX = "/yzr/video"
+
+# 本地视频文件直读地址前缀
+_LOCAL_FILE_PATH = "/yzr/file"
+
+# 进度条预览精灵图地址
+_THUMBNAIL_SPRITE_PATH = "/yzr/thumbnails/sprite"
+
+# 字幕内容地址
+_SUBTITLE_PATH = "/yzr/getSubtitle"
 
 # 转发给 dandanPlay 的响应头
 _STREAM_PASS_HEADERS = (
@@ -95,21 +129,125 @@ _STREAM_PASS_HEADERS = (
     "ETag",
 )
 
+# bangumiList 返回值精简：只保留前端实际使用的字段
+_FILE_KEEP_KEYS = ("Id", "Name", "Path", "AnimeId", "AnimeTitle", "EpisodeTitle")
+_EPISODE_KEEP_KEYS = ("EpisodeTitle", "AirDate", "AirStatus")
+
+# bangumi/search 返回值精简：只保留前端实际使用的字段
+_BANGUMI_KEEP_KEYS = ("Id", "GroupName", "Cover", "Title", "Rating", "EpisodeWatched", "EpisodeTotal", "AnimeId")
+
+
+def _simplify_bangumi_detail(data):
+    """精简 bangumiList 返回数据，减少传输体积"""
+    episodes = []
+    for ep in data.get("Episodes", []):
+        simplified_ep = {k: ep.get(k) for k in _EPISODE_KEEP_KEYS}
+        simplified_ep["LocalMatchedFiles"] = [
+            {k: f.get(k) for k in _FILE_KEEP_KEYS}
+            for f in ep.get("LocalMatchedFiles", [])
+        ]
+        episodes.append(simplified_ep)
+    return {
+        "AnimeId": data.get("AnimeId"),
+        "Title": data.get("Title"),
+        "Episodes": episodes,
+    }
+
+
+def _simplify_bangumi_list(data):
+    """精简 bangumi/search 返回的番剧列表数据"""
+    return [
+        {k: item.get(k) for k in _BANGUMI_KEEP_KEYS}
+        for item in (data or [])
+    ]
+
 
 def _build_stream_proxy_url(video_id):
     """构造对外的视频流代理地址（相对路径，前端自动带上当前访问的 host）"""
     return f"{_PROXY_PATH_PREFIX}/{video_id}"
 
 
+def _build_local_file_url(file_path):
+    """构造本地视频文件直读地址（相对路径，前端自动带上当前访问的 host）"""
+    return f"{_LOCAL_FILE_PATH}?path={quote(file_path)}"
+
+
 @dandanplay_bp.route("/stream", methods=["GET"])
 def submit_stream():
-    """返回视频流地址，不再依赖客户端 IP 判断"""
+    """返回视频播放地址：优先按前端传入的本地文件路径直读，未传路径时回退到 dandanPlay 代理"""
     video_id = request.args.get('videoId')
-    if not video_id:
-        return error("缺少videoId参数", 400)
-    stream_url = _build_stream_proxy_url(video_id)
-    logger.info(f"[stream] 视频流代理地址: {stream_url}")
+    file_path = request.args.get('path')
+    if not video_id and not file_path:
+        return error("缺少videoId或path参数", 400)
+
+    if file_path:
+        stream_url = _build_local_file_url(file_path)
+    else:
+        stream_url = _build_stream_proxy_url(video_id)
     return jsonify({"url": stream_url}), 200
+
+
+@dandanplay_bp.route("/file", methods=["GET", "HEAD"])
+def submit_local_file():
+    """本地视频文件直读：直接按磁盘路径返回文件，send_file 自动处理 Range 分段（支持拖动进度）"""
+    file_path = request.args.get('path')
+    if not file_path:
+        return error("缺少path参数", 400)
+    if not os.path.isfile(file_path):
+        logger.error(f"[file] 视频文件不存在: {file_path}")
+        return error("视频文件不存在", 404)
+
+    mimetype, _ = mimetypes.guess_type(file_path)
+    return send_file(file_path, conditional=True, mimetype=mimetype)
+
+
+@dandanplay_bp.route("/poster", methods=["GET"])
+def submit_poster():
+    """视频封面：用 ffmpeg 从本地视频截帧生成（带缓存）"""
+    file_path = request.args.get('path')
+    if not file_path:
+        return error("缺少path参数", 400)
+    if not os.path.isfile(file_path):
+        return error("视频文件不存在", 404)
+
+    poster_file = get_poster(file_path)
+    if not poster_file:
+        return error("生成视频封面失败", 500)
+    return send_file(poster_file, mimetype="image/jpeg")
+
+
+@dandanplay_bp.route("/thumbnails", methods=["GET"])
+def submit_thumbnails():
+    """进度条预览缩略图布局信息，前端用于配置播放器 thumbnails"""
+    file_path = request.args.get('path')
+    if not file_path:
+        return error("缺少path参数", 400)
+    if not os.path.isfile(file_path):
+        return error("视频文件不存在", 404)
+
+    info = get_sprite_info(file_path)
+    if not info:
+        return error("获取缩略图信息失败", 500)
+    return success({
+        "url": f"{_THUMBNAIL_SPRITE_PATH}?path={quote(file_path)}",
+        "number": info["number"],
+        "column": info["column"],
+        "width": info["width"],
+        "height": info["height"],
+    })
+
+
+@dandanplay_bp.route("/thumbnails/sprite", methods=["GET"])
+def submit_thumbnail_sprite():
+    """进度条预览精灵图：用 ffmpeg 从本地视频生成（带缓存）"""
+    file_path = request.args.get('path')
+    if not file_path or not os.path.isfile(file_path):
+        return error("视频文件不存在", 404)
+
+    sprite_file = get_sprite(file_path)
+    if not sprite_file:
+        return error("生成缩略图失败", 500)
+    return send_file(sprite_file, mimetype="image/jpeg")
 
 
 @dandanplay_bp.route("/video/<video_id>", methods=["GET", "HEAD"])
@@ -185,7 +323,6 @@ def submit_comment():
         if 'videoId' not in params:
             return "", 400
         video_id = params['videoId']
-        logger.info(f"[comment] 获取弹幕: {video_id}")
         try:
             resp = getComment(videoId=video_id)
             if resp.status_code == 200:
@@ -207,7 +344,6 @@ def submit_image():
         if 'videoId' not in params:
             return error("缺少videoId参数", 400)
         video_id = params['videoId']
-        logger.info(f"[image] 获取海报图片: {video_id}")
         try:
             resp = getImage(videoId=video_id)
             if resp.status_code == 200:
@@ -221,57 +357,42 @@ def submit_image():
         return error("请求方法不被允许", 405)
 
 
-@dandanplay_bp.route("/getSubtitleList", methods=["GET", "POST"])
+@dandanplay_bp.route("/getSubtitleList", methods=["GET"])
 def submit_getSubtitleList():
-    if request.method == "GET":
-        params = request.args.to_dict()
-        if 'videoId' not in params:
-            return error("缺少videoId参数", 400)
-        video_id = params['videoId']
-        titles = []
-        try:
-            resp = fun_request.api_dandanPlay_request({
-                "url": f"/api/v1/subtitle/info/{video_id}",
-                "method": "get"
-            })
-            if resp and resp.status_code == 200:
-                data = resp.json()
-                if data and data.get('subtitles'):
-                    subtitles = data['subtitles']
-                    titles = [item.get('fileName') for item in subtitles if item.get('fileName')]
-        except Exception as e:
-            print(f"API获取字幕列表失败: {e}")
+    """获取本地字幕列表：同目录外挂字幕 + 视频内封文本字幕"""
+    path = request.args.get('path')
+    if not path:
+        return error("缺少path参数", 400)
+    if not os.path.isfile(path):
+        return error("视频文件不存在", 404)
 
-        if not titles:
-            result = get_subtitle_list(videoId=video_id)
-            if result is not None:
-                titles = [item.get('title') for item in result if item.get('title')]
+    data = []
+    has_internal = False
+    for item in fun_subtitle.list_subtitles(path):
+        if item["source"] == "external":
+            # .ssa 与 .ass 同属 ASS 系列，统一按 ass 交给播放器解析
+            sub_type = os.path.splitext(item["path"])[1].lstrip(".").lower()
+            if sub_type == "ssa":
+                sub_type = "ass"
+            sub_url = f"{_SUBTITLE_PATH}?subFile={quote(item['path'])}"
+        else:
+            has_internal = True
+            # 内封字幕统一由 ffmpeg 转成 srt（内置编码器，不依赖 libass）
+            sub_type = "srt"
+            sub_url = f"{_SUBTITLE_PATH}?videoPath={quote(path)}&stream={item['stream']}"
+        data.append({
+            "source": item["source"],
+            "name": item["name"],
+            "type": sub_type,
+            "url": sub_url,
+        })
 
-        if not titles:
-            return error("未找到字幕", 404)
-        return success(titles)
-    elif request.method == "POST":
-        return error("请使用 GET 方法提交数据", 400)
+    logger.info(f"[getSubtitleList] {path} -> {len(data)} 条字幕")
+    if not data:
+        return error("未找到字幕", 404)
 
+    # 有内封字幕则后台预热：打开播放页就开始提取并缓存，切换时直接命中缓存
+    if has_internal:
+        fun_subtitle.start_internal_prefetch(path)
 
-@dandanplay_bp.route("/setSubtitle", methods=["GET", "POST"])
-def submit_setSubtitle():
-    if request.method == "GET":
-        params = request.args.to_dict()
-        if 'videoId' not in params or 'subtitle' not in params:
-            return error("缺少videoId或subtitle参数", 400)
-        try:
-            resp = fun_request.api_dandanPlay_request({
-                "url": "/web1/video.html",
-                "method": "get",
-                "params": {"id": params['videoId'], "subtitle": params['subtitle']}
-            })
-            ok = resp is not None and resp.status_code == 200
-            if ok:
-                return success(True)
-            return error("设置字幕失败", 500, data=False)
-        except Exception as e:
-            print(f"setSubtitle 请求出错: {e}")
-            return error("设置字幕失败", 500, data=False)
-    elif request.method == "POST":
-        return error("请使用 GET 方法提交数据", 400)
+    return success(data)
