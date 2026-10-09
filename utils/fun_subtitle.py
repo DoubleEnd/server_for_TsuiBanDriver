@@ -1,4 +1,5 @@
 # 本地字幕：同目录外挂字幕扫描 + 视频内封文本字幕流提取
+import codecs
 import hashlib
 import json
 import logging
@@ -13,6 +14,12 @@ logger = logging.getLogger(__name__)
 
 # 外挂字幕扩展名（仅文本字幕，不含 VobSub 等图形字幕）
 _EXTERNAL_EXTS = (".ass", ".ssa", ".srt", ".vtt")
+
+# 外挂字体扩展名：字幕组常随片附带字体，ASS 依赖这些字体才能正确排版
+_EXTERNAL_FONT_EXTS = (".ttf", ".otf", ".ttc", ".otc", ".woff", ".woff2")
+
+# 外挂字体常见的子目录名（在视频同目录下查找）
+_FONT_SUBDIRS = ("fonts", "font", "字体")
 
 # 可提取为文本的内封字幕编码，图形字幕（PGS/VobSub）不在其中
 _TEXT_SUB_CODECS = {"ass", "ssa", "subrip", "srt", "mov_text", "webvtt", "text", "microdvd"}
@@ -30,8 +37,43 @@ _prefetch_lock = threading.Lock()
 _FFMPEG_TIMEOUT = 300
 
 
+def _guess_utf16_encoding(data):
+    """按 NUL 字节分布猜测无 BOM 的 UTF-16 字节序，非 UTF-16 返回 None
+
+    UTF-16 文本中 ASCII 字符会与 0x00 交错，NUL 占比明显偏高；而用 utf-8 解码
+    这类数据不会报错（0x00 是合法 UTF-8 字符），会得到夹带 NUL 的乱码，因此必须
+    在 utf-8 之前先做识别。
+    """
+    sample = data[:4096]
+    if len(sample) < 4:
+        return None
+    if sample.count(0) / len(sample) < 0.15:
+        return None
+    even_zeros = sample[0::2].count(0)
+    odd_zeros = sample[1::2].count(0)
+    if even_zeros > odd_zeros * 2:
+        return "utf-16-be"
+    if odd_zeros > even_zeros * 2:
+        return "utf-16-le"
+    return None
+
+
 def _decode_bytes(data):
-    """按常见字幕编码依次尝试解码"""
+    """按常见字幕编码解码为 UTF-8 文本"""
+    if not data:
+        return ""
+    # 带 BOM：utf-16 会自动识别 LE/BE 并去掉 BOM
+    if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return data.decode("utf-16")
+    if data.startswith(codecs.BOM_UTF8):
+        return data.decode("utf-8-sig")
+    # 无 BOM 的 UTF-16 需要先于 utf-8 判断
+    guessed = _guess_utf16_encoding(data)
+    if guessed:
+        try:
+            return data.decode(guessed)
+        except UnicodeDecodeError:
+            pass
     for encoding in ("utf-8-sig", "utf-8", "gb18030", "big5"):
         try:
             return data.decode(encoding)
@@ -105,6 +147,7 @@ def list_internal_subtitles(video_path):
             "source": "internal",
             "name": name,
             "stream": stream.get("index"),
+            "codec": codec,
         })
     return subtitles
 
@@ -112,6 +155,35 @@ def list_internal_subtitles(video_path):
 def list_subtitles(video_path):
     """汇总字幕：外挂在前、内封在后"""
     return list_external_subtitles(video_path) + list_internal_subtitles(video_path)
+
+
+def list_external_fonts(video_path):
+    """扫描视频同目录及常见字体子目录下的外挂字体，供前端 ASS 渲染使用
+
+    字幕组常把字体放在视频同目录或同目录的 fonts 子目录中；没有外挂字体时前端
+    会回退到内置的默认中文字体。
+    """
+    directory = os.path.dirname(video_path)
+    scan_dirs = [directory]
+    for sub in _FONT_SUBDIRS:
+        candidate = os.path.join(directory, sub)
+        if os.path.isdir(candidate):
+            scan_dirs.append(candidate)
+
+    fonts = []
+    for scan_dir in scan_dirs:
+        try:
+            names = os.listdir(scan_dir)
+        except OSError as e:
+            logger.error(f"[subtitle] 读取字体目录失败: {e}")
+            continue
+        for name in sorted(names):
+            if os.path.splitext(name)[1].lower() not in _EXTERNAL_FONT_EXTS:
+                continue
+            font_path = os.path.join(scan_dir, name)
+            if os.path.isfile(font_path):
+                fonts.append({"name": name, "path": font_path})
+    return fonts
 
 
 def read_external_subtitle(sub_path):
@@ -125,14 +197,31 @@ def read_external_subtitle(sub_path):
     return _decode_bytes(data)
 
 
-def _cache_file(video_path, stream_index):
-    """按 路径 + 修改时间 + 大小 + 字幕流 生成缓存文件路径，源文件变更后自动失效"""
+def _cache_file(video_path, stream_index, ext):
+    """按 路径 + 修改时间 + 大小 + 字幕流 + 格式 生成缓存文件路径，源文件变更后自动失效"""
     stat = os.stat(video_path)
-    raw = f"{video_path}|{stat.st_mtime_ns}|{stat.st_size}|stream:{stream_index}"
+    raw = f"{video_path}|{stat.st_mtime_ns}|{stat.st_size}|stream:{stream_index}|{ext}"
     key = hashlib.md5(raw.encode("utf-8")).hexdigest()
     cache_dir = os.path.join(get_base_path(), _CACHE_DIR_NAME)
     os.makedirs(cache_dir, exist_ok=True)
-    return os.path.join(cache_dir, f"{key}.srt")
+    return os.path.join(cache_dir, f"{key}.{ext}")
+
+
+def _sub_format(codec):
+    """字幕流的输出格式：ASS 系列保留原样式输出为 ass，其余文本字幕统一输出为 srt
+
+    前端 ASS 渲染器（libass/jassub）需要原始的 ass 文本，若先转成 srt 会丢失
+    样式、定位与特效，因此内封 ASS 必须按 ass 输出。
+    """
+    return "ass" if codec in ("ass", "ssa") else "srt"
+
+
+def _find_internal_stream(video_path, stream_index):
+    """按流序号查找视频内的文本字幕流（stream_index 可能来自查询参数，故统一转字符串比较）"""
+    for item in list_internal_subtitles(video_path):
+        if str(item["stream"]) == str(stream_index):
+            return item
+    return None
 
 
 def _read_cache(cache_file):
@@ -151,13 +240,17 @@ def _remove_quietly(path):
 
 
 def extract_internal_subtitle(video_path, stream_index):
-    """返回指定内封字幕流的 srt 文本
+    """返回指定内封字幕流的文本（ASS 系列返回 ass，其余返回 srt）
 
     ffmpeg 提取内封字幕必须从头扫描整个文件（mkv 字幕块与视频交错存放，无法跳读），
     逐条提取会导致每点一个字幕就重扫一遍。因此首次访问时用一条命令把该视频的
     **所有**内封字幕流一次性提取并缓存，之后任意切换都直接命中缓存。
     """
-    cache_file = _cache_file(video_path, stream_index)
+    stream = _find_internal_stream(video_path, stream_index)
+    if stream is None:
+        raise RuntimeError("未找到指定的内封字幕流")
+
+    cache_file = _cache_file(video_path, stream_index, _sub_format(stream["codec"]))
     cached = _read_cache(cache_file)
     if cached is not None:
         return cached
@@ -201,13 +294,17 @@ def start_internal_prefetch(video_path):
 
 
 def _extract_all_internal(video_path):
-    """一次 ffmpeg 调用提取视频的全部内封文本字幕流到缓存文件"""
+    """一次 ffmpeg 调用提取视频的全部内封文本字幕流到缓存文件
+
+    ASS/SSA 流按 ass 输出以保留样式与特效，其余文本流统一转成 srt。
+    """
     streams = list_internal_subtitles(video_path)
     pending = []
     for item in streams:
-        cache_file = _cache_file(video_path, item["stream"])
+        ext = _sub_format(item["codec"])
+        cache_file = _cache_file(video_path, item["stream"], ext)
         if not os.path.isfile(cache_file):
-            pending.append((item["stream"], cache_file))
+            pending.append((item["stream"], cache_file, ext))
 
     if not pending:
         return
@@ -215,10 +312,10 @@ def _extract_all_internal(video_path):
     # 先写临时文件，全部成功后再改名，避免失败时留下半截缓存
     tmp_pairs = []
     args = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", video_path]
-    for stream_index, cache_file in pending:
+    for stream_index, cache_file, ext in pending:
         tmp_file = cache_file + ".tmp"
         tmp_pairs.append((tmp_file, cache_file))
-        args += ["-map", f"0:{stream_index}", "-c:s", "srt", "-f", "srt", tmp_file]
+        args += ["-map", f"0:{stream_index}", "-c:s", ext, "-f", ext, tmp_file]
 
     started = time.time()
     try:

@@ -377,8 +377,9 @@ def submit_getSubtitleList():
             sub_url = f"{_SUBTITLE_PATH}?subFile={quote(item['path'])}"
         else:
             has_internal = True
-            # 内封字幕统一由 ffmpeg 转成 srt（内置编码器，不依赖 libass）
-            sub_type = "srt"
+            # ASS/SSA 内封字幕按 ass 输出以保留样式（交给前端 libass 渲染），
+            # 其余文本字幕由 ffmpeg 转成 srt（内置编码器，不依赖 libass）
+            sub_type = "ass" if item.get("codec") in ("ass", "ssa") else "srt"
             sub_url = f"{_SUBTITLE_PATH}?videoPath={quote(path)}&stream={item['stream']}"
         data.append({
             "source": item["source"],
@@ -395,4 +396,24 @@ def submit_getSubtitleList():
     if has_internal:
         fun_subtitle.start_internal_prefetch(path)
 
+    return success(data)
+
+
+@dandanplay_bp.route("/getFontList", methods=["GET"])
+def submit_getFontList():
+    """获取字幕组随片提供的外挂字体（视频同目录 / fonts 子目录），前端交给 ASS 渲染器加载"""
+    path = request.args.get('path')
+    if not path:
+        return error("缺少path参数", 400)
+    if not os.path.isfile(path):
+        return error("视频文件不存在", 404)
+
+    data = [
+        {
+            "name": item["name"],
+            "url": f"{_LOCAL_FILE_PATH}?path={quote(item['path'])}",
+        }
+        for item in fun_subtitle.list_external_fonts(path)
+    ]
+    logger.info(f"[getFontList] {path} -> {len(data)} 个外挂字体")
     return success(data)
