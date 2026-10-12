@@ -1,3 +1,7 @@
+import base64
+import hashlib
+import time
+
 import requests
 import urllib3
 
@@ -5,6 +9,9 @@ from utils.fun_config import get_url_config, get_search_config
 
 # 禁用 SSL 证书验证警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# 弹弹play 开放 API 地址（签名模式）
+DANDANPLAY_API_BASE = "https://api.dandanplay.net"
 
 # 用于缓存登录 cookie
 _qb_cookie_cache = None
@@ -45,19 +52,11 @@ def get_qBittorrent_BASE_URL():
     return config['qBittorrent_BASE_URL']
 
 
-def get_dandanPlay_BASE_URL():
-    """动态获取 dandanPlay BASE URL"""
-    config = get_url_config()
-    if config is None:
-        return 'http://127.0.0.1:8888'
-    return config['dandanPlay_BASE_URL']
-
-
 def get_request_config(use_proxy=True):
     """获取搜索配置中的请求头和代理设置
     
     Args:
-        use_proxy: 是否使用代理（qBittorrent 和 dandanPlay 不需要代理）
+        use_proxy: 是否使用代理（qBittorrent 等局域网服务不需要代理）
     """
     search_config = get_search_config()
     config = {}
@@ -105,10 +104,48 @@ def api_qBittorrent_request(config):
     config['cookie'] = original_cookie
     return result
 
+
+def is_dandanplay_configured():
+    """是否已配置弹弹play 开放 API 凭证（签名模式）"""
+    config = get_url_config() or {}
+    app_id = str(config.get("dandanPlay_app_id") or "").strip()
+    app_secret = str(config.get("dandanPlay_app_secret") or "").strip()
+    return bool(app_id and app_secret)
+
+
+def dandanplay_signature_headers(path):
+    """生成签名模式请求头：X-AppId + X-Timestamp + X-Signature
+
+    算法：base64(sha256(AppId + Timestamp + Path + AppSecret))，
+    Path 为接口路径且不含查询参数。未配置凭证时返回空字典。
+    """
+    config = get_url_config() or {}
+    app_id = str(config.get("dandanPlay_app_id") or "").strip()
+    app_secret = str(config.get("dandanPlay_app_secret") or "").strip()
+    if not app_id or not app_secret:
+        return {}
+    timestamp = str(int(time.time()))
+    raw = f"{app_id}{timestamp}{path}{app_secret}"
+    signature = base64.b64encode(hashlib.sha256(raw.encode("utf-8")).digest()).decode()
+    return {"X-AppId": app_id, "X-Timestamp": timestamp, "X-Signature": signature}
+
+
 def api_dandanPlay_request(config):
-    """dandanPlay 请求（不使用代理）"""
-    url = get_dandanPlay_BASE_URL() + config.get('url', '')
-    return request(config, url, use_proxy=False)
+    """弹弹play 开放 API 请求（签名模式，直连）"""
+    path = config.get('url', '')
+    headers = dict(config.get('headers') or {})
+    headers.update(dandanplay_signature_headers(path))
+    config['headers'] = headers
+    return request(config, DANDANPLAY_API_BASE + path, use_proxy=False)
+
+
+def post_or_put(sender, url, params, json_body, data, cookie, headers, proxies, timeout, verify_ssl):
+    """POST/PUT 请求：有 json 体时以 JSON 发送，否则按表单发送"""
+    common = dict(params=params, cookies=cookie, headers=headers,
+                  proxies=proxies, timeout=timeout, verify=verify_ssl)
+    if json_body is not None:
+        return sender(url, json=json_body, **common)
+    return sender(url, data=data, **common)
 
 
 def request(config, url, use_proxy=True):
@@ -123,6 +160,8 @@ def request(config, url, use_proxy=True):
     params = config.get('params', {})
     headers = config.get('headers', {})
     data = config.get('data', {})
+    # json 存在时以 JSON 方式发送请求体（如弹弹play 的 match 接口）
+    json_body = config.get('json')
     cookie = config.get('cookie', '')
     timeout = config.get('timeout', 15)
     
@@ -150,9 +189,9 @@ def request(config, url, use_proxy=True):
         if method == 'GET':
             response = requests.get(url, params=params, cookies=cookie, headers=headers, proxies=proxies, timeout=timeout, verify=verify_ssl)
         elif method == 'POST':
-            response = requests.post(url, params=params, data=data, cookies=cookie, headers=headers, proxies=proxies, timeout=timeout, verify=verify_ssl)
+            response = post_or_put(requests.post, url, params, json_body, data, cookie, headers, proxies, timeout, verify_ssl)
         elif method == 'PUT':
-            response = requests.put(url, params=params, data=data, cookies=cookie, headers=headers, proxies=proxies, timeout=timeout, verify=verify_ssl)
+            response = post_or_put(requests.put, url, params, json_body, data, cookie, headers, proxies, timeout, verify_ssl)
         elif method == 'DELETE':
             response = requests.delete(url, params=params, cookies=cookie, headers=headers, proxies=proxies, timeout=timeout, verify=verify_ssl)
         elif method == 'HEAD':

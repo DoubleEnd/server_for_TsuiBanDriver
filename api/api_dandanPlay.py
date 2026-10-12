@@ -1,95 +1,61 @@
-from crawler.get_subtitle import is_subtitle
+# 弹弹play 开放 API 封装（签名模式）
 from utils.fun_request import api_dandanPlay_request
 
-def welcome(params):
+
+def match(file_name, file_hash, match_mode="hashAndFileName"):
+    """文件识别：按文件名 + 前 16MB 的 MD5 匹配番剧与剧集"""
     return api_dandanPlay_request({
-        "url": "/api/v1/welcome",
+        "url": "/api/v2/match",
+        "method": "post",
+        "json": {
+            "fileName": file_name,
+            "fileHash": file_hash,
+            "matchMode": match_mode,
+        },
+        "timeout": 20,
+    })
+
+
+def bangumi(anime_id):
+    """番剧详情：名称、封面、评分、放送日期与剧集列表"""
+    return api_dandanPlay_request({
+        "url": f"/api/v2/bangumi/{anime_id}",
         "method": "get",
-        "params": params
+        "timeout": 20,
     })
 
 
-def library(params):
+def bangumi_by_bgmtv(subject_id):
+    """按 Bangumi.tv 的 subjectId 获取番剧详情（时间表数据来自 bgm.tv）"""
     return api_dandanPlay_request({
-        "url": "/api/v1/library",
+        "url": f"/api/v2/bangumi/bgmtv/{subject_id}",
         "method": "get",
-        "params": params
+        "timeout": 20,
     })
 
 
-def bangumi(params):
+def search_anime(keyword):
+    """按关键字搜索番剧"""
     return api_dandanPlay_request({
-        "url": f"/api/v1/library/v2/bangumi/list/nav:{params}",
-        "method": "get"
+        "url": "/api/v2/search/anime",
+        "method": "get",
+        "params": {"keyword": keyword},
+        "timeout": 20,
     })
 
 
-def bangumiList(params):
-    return api_dandanPlay_request({
-        "url": f"/api/v1/library/v2/bangumi/details/{params}",
-        "method": "get"
-    })
+def comments(episode_id, with_related=True, ch_convert=0):
+    """剧集弹幕：episodeId 为弹幕库编号
 
-
-def search_library(keyword="", nav="name", fields=None):
-    """在本地番剧库（dandanplay library）中按标题关键字搜索
-
-    nav 为列表排序/分类方式（lastplay/season/lastupdate/lastadd/name/category/rating）。
-    fields 传入字段名集合时，只保留这些字段（如给 AI 用时过滤掉封面、时间戳等无关数据）。
-    返回番剧列表；请求失败返回 None，解析失败返回空列表。
+    withRelated 为 true 时同时获取关联的第三方弹幕源（弹幕更全）；
+    该接口会 302 跳转到弹幕加速服务，requests 默认跟随跳转。
     """
-    result = bangumi(params=nav)
-    if not result:
-        return None
-    try:
-        data = result.json()
-    except Exception:
-        data = []
-    if not isinstance(data, list):
-        data = []
-    keyword_lower = (keyword or "").strip().lower()
-    if keyword_lower:
-        data = [item for item in data
-                if keyword_lower in str(item.get("Title", "")).lower()]
-    if fields:
-        data = [{key: item.get(key) for key in fields} for item in data]
-    return data
-
-# 获取字幕
-def getSubtitle(params):
-    # print("获取字幕")
-    if is_subtitle(params):
-        result = api_dandanPlay_request({
-            "url": f"/web1/subtitle/{params}/ass",
-            "method": "get",
-        })
-        if result.text:
-            return result.content.decode("utf-8")
-        else:
-            return getSubtitle(params)
-    else:
-        return ""
-
-
-def getStreamUrl(videoId):
+    params = {"chConvert": ch_convert}
+    if with_related:
+        params["withRelated"] = "true"
     return api_dandanPlay_request({
-        "url": f"/api/v1/stream/id/{videoId}",
+        "url": f"/api/v2/comment/{episode_id}",
         "method": "get",
-        "timeout": 60
-    })
-
-
-def getComment(videoId):
-    return api_dandanPlay_request({
-        "url": f"/api/v1/comment/id/{videoId}",
-        "method": "get",
-        "timeout": 30
-    })
-
-
-def getImage(videoId):
-    return api_dandanPlay_request({
-        "url": f"/api/v1/image/id/{videoId}",
-        "method": "get",
-        "timeout": 30
+        "params": params,
+        "timeout": 30,
     })

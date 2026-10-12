@@ -8,6 +8,7 @@ rule_info_path = get_config_path('rule_info.json')
 url_config_path = get_config_path('url_config.json')
 ai_chat_config_path = get_config_path('ai_chat_config.json')
 search_config_path = get_config_path('search_config.json')
+scan_config_path = get_config_path('scan_config.json')
 app_info_path = get_config_path('app_info.json')
 auth_config_path = get_config_path('auth_config.json')
 
@@ -16,8 +17,17 @@ DEFAULT_URL_CONFIG = {
     "qBittorrent_port": 8080,
     "qBittorrent_username": "",
     "qBittorrent_password": "",
-    "dandanPlay_host": "127.0.0.1",
-    "dandanPlay_port": 8888
+    # 是否绑定 qBittorrent：未绑定时前端不展示订阅/下载相关功能，后端也可正常运行
+    "qBittorrent_enabled": False,
+    # 弹弹play 开放 API 凭证（签名模式）：用于文件识别与番剧信息
+    "dandanPlay_app_id": "",
+    "dandanPlay_app_secret": ""
+}
+
+# 媒体库扫描配置：扫描目录列表 + 黑名单（路径或文件名的正则，命中即跳过）
+DEFAULT_SCAN_CONFIG = {
+    "scan_paths": [],
+    "scan_blacklist": []
 }
 
 DEFAULT_SEARCH_CONFIG = {
@@ -59,8 +69,7 @@ DEFAULT_APP_INFO = [
     { "name": "开源协议", "value": "CC BY-NC 4.0", "href": "https://creativecommons.org/licenses/by-nc/4.0/deed.zh-hans" },
     { "name": "分割线" },
     { "name": "qbittorrent版本", "value": "", "href":"https://www.fosshub.com/qBittorrent.html"},
-    { "name": "qbittorrentWebApi版本", "value": "", "href":"https://github.com/qbittorrent/wiki/blob/master/WebUI-API-(qBittorrent-5.0).md"},
-    { "name": "dandanPlay版本", "value": "", "href": "https://www.dandanplay.com/"}
+    { "name": "qbittorrentWebApi版本", "value": "", "href":"https://github.com/qbittorrent/wiki/blob/master/WebUI-API-(qBittorrent-5.0).md"}
 ]
 
 def ensure_config_file(file_path, default_config):
@@ -71,6 +80,7 @@ def ensure_config_file(file_path, default_config):
 
 ensure_config_file(url_config_path, DEFAULT_URL_CONFIG)
 ensure_config_file(search_config_path, DEFAULT_SEARCH_CONFIG)
+ensure_config_file(scan_config_path, DEFAULT_SCAN_CONFIG)
 ensure_config_file(rule_config_path, DEFAULT_RULE_CONFIG)
 ensure_config_file(rule_info_path, {})
 ensure_config_file(ai_chat_config_path, DEFAULT_AI_CHAT_CONFIG)
@@ -90,13 +100,12 @@ def get_url_config():
 
     return {
         'qBittorrent_BASE_URL': f"http://{url_config['qBittorrent_host']}:{url_config['qBittorrent_port']}/api/v2/",
-        'dandanPlay_BASE_URL': f"http://{url_config['dandanPlay_host']}:{url_config['dandanPlay_port']}",
         'qBittorrent_host': url_config['qBittorrent_host'],
         'qBittorrent_port': url_config['qBittorrent_port'],
         'qBittorrent_username': url_config.get('qBittorrent_username'),
         'qBittorrent_password': url_config.get('qBittorrent_password'),
-        'dandanPlay_host': url_config['dandanPlay_host'],
-        'dandanPlay_port': url_config['dandanPlay_port']
+        'dandanPlay_app_id': url_config.get('dandanPlay_app_id', ''),
+        'dandanPlay_app_secret': url_config.get('dandanPlay_app_secret', '')
     }
 
 def get_rule_config():
@@ -220,20 +229,62 @@ def get_url_config_all():
         "qBittorrent_port": url_config.get("qBittorrent_port"),
         "qBittorrent_username": url_config.get("qBittorrent_username"),
         "qBittorrent_password": url_config.get("qBittorrent_password"),
-        "dandanPlay_host": url_config.get("dandanPlay_host"),
-        "dandanPlay_port": url_config.get("dandanPlay_port")
+        "qBittorrent_enabled": bool(url_config.get("qBittorrent_enabled", False)),
+        "dandanPlay_app_id": url_config.get("dandanPlay_app_id", ""),
+        # 密钥不下发给前端，只告知是否已配置
+        "dandanPlay_has_secret": bool(url_config.get("dandanPlay_app_secret", ""))
     }
 
 def save_url_config(data):
+    """保存 URL/凭证配置：未传入的字段保留原值，避免只改一项时其他项被重置"""
+    existing = load_json(url_config_path) or {}
+
+    def pick(key):
+        if key in data:
+            return data[key]
+        return existing.get(key, DEFAULT_URL_CONFIG.get(key))
+
     url_config = {
-        "qBittorrent_host": data.get("qBittorrent_host", DEFAULT_URL_CONFIG["qBittorrent_host"]),
-        "qBittorrent_port": data.get("qBittorrent_port", DEFAULT_URL_CONFIG["qBittorrent_port"]),
-        "qBittorrent_username": data.get("qBittorrent_username", DEFAULT_URL_CONFIG["qBittorrent_username"]),
-        "qBittorrent_password": data.get("qBittorrent_password", DEFAULT_URL_CONFIG["qBittorrent_password"]),
-        "dandanPlay_host": data.get("dandanPlay_host", DEFAULT_URL_CONFIG["dandanPlay_host"]),
-        "dandanPlay_port": data.get("dandanPlay_port", DEFAULT_URL_CONFIG["dandanPlay_port"])
+        "qBittorrent_host": pick("qBittorrent_host"),
+        "qBittorrent_port": pick("qBittorrent_port"),
+        "qBittorrent_username": pick("qBittorrent_username"),
+        "qBittorrent_password": pick("qBittorrent_password"),
+        "qBittorrent_enabled": bool(pick("qBittorrent_enabled")),
+        "dandanPlay_app_id": str(pick("dandanPlay_app_id") or ""),
+        "dandanPlay_app_secret": str(pick("dandanPlay_app_secret") or "")
     }
     save_json_safe(url_config_path, url_config)
+    return True
+
+def get_scan_config():
+    """获取扫描配置，缺失字段自动用默认值补全"""
+    config = load_json(scan_config_path)
+    if not config:
+        config = {}
+    changed = False
+    for key, default_value in DEFAULT_SCAN_CONFIG.items():
+        if key not in config:
+            config[key] = default_value
+            changed = True
+    if changed:
+        save_json_safe(scan_config_path, config)
+    return config
+
+def save_scan_config(data):
+    """保存扫描配置：扫描目录与黑名单正则，做去空/去重处理"""
+    def _clean(values):
+        result = []
+        for item in values or []:
+            text = str(item).strip()
+            if text and text not in result:
+                result.append(text)
+        return result
+
+    config = {
+        "scan_paths": _clean(data.get("scan_paths")),
+        "scan_blacklist": _clean(data.get("scan_blacklist"))
+    }
+    save_json_safe(scan_config_path, config)
     return True
 
 def get_auth_config():

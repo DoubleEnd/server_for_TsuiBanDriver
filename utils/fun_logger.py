@@ -119,7 +119,7 @@ def _command_version(command):
 
 def log_startup_info():
     """启动自检：打印本机环境与后端关键状态，便于排查环境问题"""
-    from utils.fun_config import get_url_config
+    from utils.fun_config import get_url_config_all
 
     base = get_base_path()
     frozen = getattr(sys, "frozen", False)
@@ -151,9 +151,10 @@ def log_startup_info():
         lines.append("配置文件   : 目录不可读")
 
     try:
-        url_config = get_url_config()
-        lines.append(f"dandanPlay : {url_config.get('dandanPlay_BASE_URL')}")
-        lines.append(f"qBittorrent: {url_config.get('qBittorrent_BASE_URL')}")
+        url_config = get_url_config_all()
+        base_url = f"http://{url_config['qBittorrent_host']}:{url_config['qBittorrent_port']}/api/v2/"
+        bound = "已绑定" if url_config.get("qBittorrent_enabled") else "未绑定"
+        lines.append(f"qBittorrent: {base_url}（{bound}）")
     except Exception as e:
         lines.append(f"URL 配置   : 读取失败（{e}）")
 

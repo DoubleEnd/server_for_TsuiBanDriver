@@ -11,8 +11,7 @@ from api.api_qBittorrent import (
     delete_torrents, matching_articles, remove_rule, set_location,
     get_sync_maindata, torrents_action
 )
-from api.api_dandanPlay import welcome
-from utils.fun_config import get_app_info
+from utils.fun_config import get_app_info, get_url_config_all
 from utils.fun_response import success, error
 
 logger = logging.getLogger(__name__)
@@ -208,17 +207,21 @@ def submit_setrule():
 @qbittorrent_bp.route("/allVersion", methods=["GET", "POST"])
 def submit_allversion():
     if request.method == "GET":
-        qb_version = get_version(data='').text
-        webapi_version = get_webapiVersion(data='').text
-        dandan_play_version = welcome(params='').json()['version']
         app_info = get_app_info()
-        for info in app_info:
-            if info["name"] == "qbittorrent版本":
-                info["value"] = qb_version
-            if info["name"] == "qbittorrentWebApi版本":
-                info["value"] = webapi_version
-            if info["name"] == "dandanPlay版本":
-                info["value"] = dandan_play_version
+        if get_url_config_all().get("qBittorrent_enabled"):
+            qb_version = get_version(data='').text
+            webapi_version = get_webapiVersion(data='').text
+            for info in app_info:
+                if info["name"] == "qbittorrent版本":
+                    info["value"] = qb_version
+                if info["name"] == "qbittorrentWebApi版本":
+                    info["value"] = webapi_version
+        else:
+            # 未绑定 qBittorrent：不展示相关版本，也不去请求 qBittorrent 接口
+            app_info = [
+                info for info in app_info
+                if not str(info.get("name", "")).lower().startswith("qbittorrent")
+            ]
         data = {"app_info": app_info}
         return success(data)
     elif request.method == "POST":
@@ -228,7 +231,7 @@ def submit_allversion():
 @qbittorrent_bp.route("/getBackendVersions", methods=["GET"])
 def submit_getbackendversions():
     try:
-        versions = {"qBittorrent": "", "qBittorrentWebApi": "", "dandanPlay": ""}
+        versions = {"qBittorrent": "", "qBittorrentWebApi": ""}
         try:
             qb_res = get_version(data='')
             if qb_res.status_code == 200:
@@ -241,12 +244,6 @@ def submit_getbackendversions():
                 versions["qBittorrentWebApi"] = webapi_res.text
         except Exception as e:
             logger.warning(f"[getBackendVersions] 获取WebAPI版本失败: {str(e)}")
-        try:
-            dandan_res = welcome(params='')
-            if dandan_res.status_code == 200:
-                versions["dandanPlay"] = dandan_res.json().get('version', '')
-        except Exception as e:
-            logger.warning(f"[getBackendVersions] 获取dandanPlay版本失败: {str(e)}")
         return success(versions)
     except Exception as e:
         logger.error(f"[getBackendVersions] 异常错误: {str(e)}", exc_info=True)

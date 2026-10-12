@@ -11,8 +11,6 @@ logger = logging.getLogger(__name__)
 MAX_RSS_TITLES = 60
 # 单个搜索工具返回给 AI 的条目上限
 MAX_SEARCH_ITEMS = 20
-# 本地番剧库只把必要字段交给 AI，过滤掉封面、时间戳、收藏状态等无关数据
-LOCAL_BANGUMI_FIELDS = ("AnimeId", "Title", "EpisodeTotal", "EpisodeWatched", "Rating", "TypeDescription", "LastPlay")
 
 # ---------- API 配置（从 ai_chat_config.json 读取） ----------
 def _get_chat_config():
@@ -21,33 +19,6 @@ def _get_chat_config():
 
 # ---------- 工具定义 ----------
 TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "search_local_bangumi",
-            "description": (
-                "【本地番剧库搜索】搜索本机 dandanplay 媒体库中已有的番剧，即网页主页「番剧」页的数据源。"
-                "每条只返回必要信息：标题、本地ID(AnimeId)、总集数、已看集数、评分、类型、最近播放时间，"
-                "不含封面、简介等无关数据。"
-                "只能查到本地已存在的番剧，查不到任何可下载的网络资源；"
-                "返回的 AnimeId 是 dandanplay 本地ID，与 RSS 搜索返回的番剧ID、Bangumi 条目ID 都不同，不能传给其他工具。"
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "keyword": {
-                        "type": "string",
-                        "description": "番剧名称关键词，留空表示列出全部本地番剧"
-                    },
-                    "nav": {
-                        "type": "string",
-                        "description": "列表方式，可选 lastplay/season/lastupdate/lastadd/name/category/rating，默认 name"
-                    }
-                },
-                "required": []
-            }
-        }
-    },
     {
         "type": "function",
         "function": {
@@ -111,23 +82,6 @@ TOOLS = [
                     }
                 },
                 "required": ["bangumi_id"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_subtitle_list",
-            "description": "获取指定视频可用的字幕列表",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "video_id": {
-                        "type": "string",
-                        "description": "视频ID"
-                    }
-                },
-                "required": ["video_id"]
             }
         }
     },
@@ -358,16 +312,6 @@ def _summarize_rss_search(raw):
     return "\n".join(lines)
 
 
-def _summarize_local_bangumi(data):
-    """本地番剧库结果只把前若干条交给 AI，避免条目过多"""
-    if not data:
-        return None
-    ai_text = json.dumps(data[:MAX_SEARCH_ITEMS], ensure_ascii=False)
-    if len(data) > MAX_SEARCH_ITEMS:
-        ai_text += f"\n（共 {len(data)} 条，仅列出前 {MAX_SEARCH_ITEMS} 条）"
-    return ai_text
-
-
 def _search_bangumi_api(keyword, limit=10):
     """调用 Bangumi 公共接口搜索番剧条目，复用 routes/bangumi.py 的请求实现
 
@@ -453,20 +397,7 @@ def _summarize_rss_rules(rules):
 def _execute_tool(name, arguments):
     """执行工具，返回 (ai_text, component, data) 三元组。"""
     try:
-        if name == "search_local_bangumi":
-            from api.api_dandanPlay import search_library
-            keyword = arguments.get("keyword", "")
-            nav = arguments.get("nav") or "name"
-            data = search_library(keyword=keyword, nav=nav, fields=LOCAL_BANGUMI_FIELDS)
-            if data is None:
-                return "本地番剧库查询失败，请检查 dandanPlay 是否可用", None, {"message": "本地番剧库查询失败"}
-            if not data:
-                tip = f"本地番剧库中没有找到与「{keyword}」相关的番剧" if keyword else "本地番剧库为空"
-                return tip, None, {"message": tip}
-            ai_text = _summarize_local_bangumi(data)
-            return ai_text, None, {"message": ai_text}
-
-        elif name == "search_rss_bangumi":
+        if name == "search_rss_bangumi":
             from crawler.get_info import get_info_list
             keyword = arguments.get("keyword", "")
             raw = get_info_list(banguminame=keyword)
@@ -499,14 +430,6 @@ def _execute_tool(name, arguments):
                 return "未找到字幕组信息", "SubgroupList", []
             ai_text = json.dumps(raw, ensure_ascii=False)
             return ai_text, "SubgroupList", raw
-
-        elif name == "get_subtitle_list":
-            from crawler.get_subtitle import get_subtitle_list
-            raw = get_subtitle_list(videoId=arguments.get("video_id", ""))
-            if not raw:
-                return "未找到字幕列表", "SubtitleList", []
-            ai_text = json.dumps(raw, ensure_ascii=False)
-            return ai_text, "SubtitleList", raw
 
         # ---------- qBittorrent 工具 ----------
         elif name == "subscribe_rss_search":
@@ -732,17 +655,14 @@ def _aggregate_stream_events(response):
 SYSTEM_PROMPT = (
     "你是一个番剧搜索、订阅与下载管理助手，通过调用工具完成任务。\n"
     "\n"
-    "【三个搜索工具的区别，务必按需选择】\n"
-    "1. search_local_bangumi —— 本地番剧库搜索：查的是本机 dandanplay 媒体库里已经下载的番剧"
-    "（即网页主页「番剧」页的内容），能看到本地有哪些番、共几集、已看到第几集、评分、类型，"
-    "只返回这些必要字段，不含封面等无关数据。它查不到任何可下载的网络资源。\n"
-    "2. search_rss_bangumi —— RSS 资源搜索：查的是网页「设置」里当前启用的 RSS 站点"
+    "【两个搜索工具的区别，务必按需选择】\n"
+    "1. search_rss_bangumi —— RSS 资源搜索：查的是网页「设置」里当前启用的 RSS 站点"
     "（蜜柑计划/MioBT/ACG.RIP/萌番组等，可用 match_download_rule 切换）上的可下载资源，"
     "能看到番剧匹配项、字幕组、以及每条 RSS 的剧集标题（单集/合集/分辨率/语言）。"
     "这是唯一能查到可下载、可订阅资源的搜索工具。\n"
-    "3. search_bangumi_api —— Bangumi 条目搜索：查的是 Bangumi(bgm.tv) 的番剧资料，"
+    "2. search_bangumi_api —— Bangumi 条目搜索：查的是 Bangumi(bgm.tv) 的番剧资料，"
     "包括原名、中文名、放送日期、平台、总集数、评分、简介，属于元数据，不含任何下载资源。\n"
-    "注意：三者返回的 ID 互不相同（dandanplay 本地ID / RSS 站点番剧ID / bgm.tv 条目ID），"
+    "注意：两者返回的 ID 互不相同（RSS 站点番剧ID / bgm.tv 条目ID），"
     "只有 RSS 站点番剧ID 能用于 get_subgroup_info，禁止混用。\n"
     "\n"
     "【搜索订阅流程，必须按此执行】\n"
@@ -758,7 +678,6 @@ SYSTEM_PROMPT = (
     "\n"
     "【其他工具】\n"
     "- get_subgroup_info：查看某番剧在某 RSS 站点上的字幕组（bangumi_id 取自 search_rss_bangumi）\n"
-    "- get_subtitle_list：查看某个视频可用的字幕（需视频ID）\n"
     "- add_rss_subscription：添加一个已知的 RSS 链接\n"
     "- get_rss_feeds：查看已订阅的 RSS 源与条目\n"
     "- delete_rss_subscription：删除某个已订阅的 RSS 源（先用 get_rss_feeds 确认名称，再经用户确认后执行）\n"

@@ -8,7 +8,7 @@ from utils import fun_request
 from utils.fun_config import (
     update_used_rule, request_rule_msg, get_rule_config, get_rule_info,
     add_edit_rule, delete_rule, get_search_config, save_search_config,
-    get_url_config_all, save_url_config
+    get_url_config_all, save_url_config, get_scan_config, save_scan_config
 )
 from utils.fun_response import success, error
 
@@ -154,6 +154,17 @@ def submit_geturlconfig():
         return error("获取URL配置失败", 500, msg=str(e))
 
 
+@config_bp.route("/getBackendStatus", methods=["GET"])
+def submit_getbackendstatus():
+    """后端能力状态：是否已绑定 qBittorrent，未绑定时前端隐藏订阅/下载相关功能"""
+    try:
+        config = get_url_config_all()
+        return success({"qBittorrent": bool(config.get("qBittorrent_enabled"))})
+    except Exception as e:
+        logger.error(f"[getBackendStatus] 异常错误: {str(e)}", exc_info=True)
+        return error("获取后端状态失败", 500, msg=str(e))
+
+
 @config_bp.route("/saveUrlConfig", methods=["POST"])
 def submit_saveurlconfig():
     if request.method == "POST":
@@ -168,6 +179,35 @@ def submit_saveurlconfig():
         except Exception as e:
             logger.error(f"[saveUrlConfig] 异常错误: {str(e)}", exc_info=True)
             return error("保存URL配置失败", 500, msg=str(e))
+    else:
+        return error("请求方法不被允许", 405)
+
+
+# ============ 扫描配置 ============
+
+@config_bp.route("/getScanConfig", methods=["GET"])
+def submit_getscanconfig():
+    if request.method == "GET":
+        return success(get_scan_config())
+    else:
+        return error("请求方法不被允许", 405)
+
+
+@config_bp.route("/saveScanConfig", methods=["POST"])
+def submit_savescanconfig():
+    if request.method == "POST":
+        try:
+            data = request.json or {}
+            if save_scan_config(data):
+                logger.info(
+                    f"[saveScanConfig] 保存扫描配置: 目录 {data.get('scan_paths')}, "
+                    f"黑名单 {data.get('scan_blacklist')}"
+                )
+                return success()
+            return error("保存扫描配置失败", 500)
+        except Exception as e:
+            logger.error(f"[saveScanConfig] 异常错误: {str(e)}", exc_info=True)
+            return error("保存扫描配置失败", 500, msg=str(e))
     else:
         return error("请求方法不被允许", 405)
 
@@ -204,22 +244,6 @@ def test_backend_connection():
                 except requests.exceptions.RequestException as e:
                     return error("连接失败", 500, msg=str(e))
 
-            elif service_type == 'dandanPlay':
-                host = data.get('host', '')
-                port = data.get('port', '')
-                if not host or not port:
-                    return error("缺少必要参数", 400)
-
-                import requests
-                try:
-                    response = requests.get(f"http://{host}:{port}/api/v1/welcome", timeout=10)
-                    if response.status_code == 200:
-                        logger.info(f"[testBackendConnection] dandanPlay 连接测试成功: {host}:{port}")
-                        return success(None, msg="连接成功")
-                    else:
-                        return error("连接失败", 500, msg=f"HTTP {response.status_code}")
-                except requests.exceptions.RequestException as e:
-                    return error("连接失败", 500, msg=str(e))
             else:
                 return error("未知的服务类型", 400)
 
