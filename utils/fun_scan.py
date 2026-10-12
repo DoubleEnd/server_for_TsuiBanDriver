@@ -413,6 +413,22 @@ def _season_group_rank(group_name):
         return 1, 0, 0
 
 
+def _latest_episode_number(series):
+    """本地已有文件对应的最新集号：取文件集号的最大值
+
+    未识别（文件没有集号）时退回文件数量；没有文件返回 0。
+    """
+    files = series.get("files") or []
+    numbers = [
+        value
+        for value in (_episode_number_value(item.get("episodeNumber")) for item in files)
+        if value is not None
+    ]
+    if numbers:
+        return int(max(numbers))
+    return len(files)
+
+
 def _to_bangumi_item(series):
     """番剧列表项：优先使用在线信息（封面/评分/集数/季度分组），未识别时回退本地"""
     files = series.get("files") or []
@@ -432,6 +448,8 @@ def _to_bangumi_item(series):
         "Rating": series.get("rating") or 0,
         "EpisodeWatched": 0,
         "EpisodeTotal": series.get("episodeCount") or len(files),
+        # 本地已有文件对应的最新集号（首页卡片第二行展示「全 N 话」）
+        "EpisodeLatest": _latest_episode_number(series),
         "GroupName": group_name,
     }
 
