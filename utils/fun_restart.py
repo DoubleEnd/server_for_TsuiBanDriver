@@ -1,4 +1,4 @@
-# 后端重启：启动新的 exe 进程并退出当前进程，用于替换 exe 后完成更新
+# 后端重启：重新启动当前程序（新进程）并退出旧进程
 import logging
 import os
 import subprocess
@@ -16,7 +16,7 @@ _RESTART_DELAY = 0.5
 def _launch_command():
     """返回重启用的 (启动参数, 工作目录)"""
     if getattr(sys, "frozen", False):
-        # 打包运行：直接启动当前 exe 所在路径，磁盘上已是替换后的新文件
+        # 打包运行：用当前 exe 路径重新启动
         exe = sys.executable
         return [exe], os.path.dirname(exe)
     # 源码运行：用同一个解释器重新执行当前命令

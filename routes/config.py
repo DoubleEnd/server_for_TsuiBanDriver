@@ -256,7 +256,7 @@ def test_backend_connection():
 
 @config_bp.route("/restartBackend", methods=["POST"])
 def submit_restartbackend():
-    """重启后端进程：替换 exe 后调用即可启动新的 exe 完成更新"""
+    """重启后端进程：启动新进程并退出旧进程"""
     if request.method == "POST":
         try:
             fun_restart.schedule_restart()
