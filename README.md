@@ -16,7 +16,6 @@ server_for_TsuiBanDriver
 │   └── api_qBittorrent.py
 ├── app.py
 ├── assets
-│   ├── app_info.json
 │   ├── nginx.conf
 │   ├── rule_config.json
 │   ├── rule_info.json
@@ -49,7 +48,6 @@ server_for_TsuiBanDriver
 - `fun_request.py`: 包含发送 HTTP 请求的函数。
 
 ## 配置文件
-- `app_info.json`: 包含应用程序的信息。
 - `nginx.conf`: 包含 Nginx 的配置。
 - `rule_config.json`: 包含规则配置。
 - `rule_info.json`: 包含规则信息。

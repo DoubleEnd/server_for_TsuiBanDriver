@@ -4,7 +4,7 @@ import time
 
 from flask import Blueprint, request, jsonify
 
-from utils import fun_request
+from utils import fun_request, fun_restart
 from utils.fun_config import (
     update_used_rule, request_rule_msg, get_rule_config, get_rule_info,
     add_edit_rule, delete_rule, get_search_config, save_search_config,
@@ -250,3 +250,20 @@ def test_backend_connection():
         except Exception as e:
             logger.error(f"[testBackendConnection] 异常错误: {str(e)}", exc_info=True)
             return error("测试连接失败", 500, msg=str(e))
+
+
+# ============ 后端重启 ============
+
+@config_bp.route("/restartBackend", methods=["POST"])
+def submit_restartbackend():
+    """重启后端进程：替换 exe 后调用即可启动新的 exe 完成更新"""
+    if request.method == "POST":
+        try:
+            fun_restart.schedule_restart()
+            logger.info("[restartBackend] 收到重启请求，后端即将重启")
+            return success(msg="后端正在重启")
+        except Exception as e:
+            logger.error(f"[restartBackend] 异常错误: {str(e)}", exc_info=True)
+            return error("重启后端失败", 500, msg=str(e))
+    else:
+        return error("请求方法不被允许", 405)

@@ -1,6 +1,8 @@
+import copy
 import hashlib
 import json
 import os
+from utils._version import VERSION
 from utils.config_manager import get_config_path, load_json_safe, save_json_safe
 
 rule_config_path = get_config_path('rule_config.json')
@@ -9,7 +11,6 @@ url_config_path = get_config_path('url_config.json')
 ai_chat_config_path = get_config_path('ai_chat_config.json')
 search_config_path = get_config_path('search_config.json')
 scan_config_path = get_config_path('scan_config.json')
-app_info_path = get_config_path('app_info.json')
 auth_config_path = get_config_path('auth_config.json')
 
 DEFAULT_URL_CONFIG = {
@@ -64,13 +65,13 @@ DEFAULT_AUTH_CONFIG = {
 # 生成访问令牌用的固定盐值，修改密码后旧令牌自动失效
 _AUTH_TOKEN_SALT = "tsuiban_driver_auth"
 
-DEFAULT_APP_INFO = [
-    { "name": "后端版本", "value": "1.0.0" },
+# 应用信息内置在代码中，不再落地为外部配置文件，由 /allVersion 接口直接返回
+APP_INFO = [
+    { "name": "后端版本", "value": VERSION },
     { "name": "作者", "value": "@DoubleEnd", "href": "https://github.com/DoubleEnd"},
     { "name": "邮箱", "value": "doubleend@qq.com" },
     { "name": "项目地址", "value": "server_for_TsuiBanDriver", "href": "https://github.com/DoubleEnd/server_for_TsuiBanDriver" },
     { "name": "开源协议", "value": "CC BY-NC 4.0", "href": "https://creativecommons.org/licenses/by-nc/4.0/deed.zh-hans" },
-    { "name": "分割线" },
     { "name": "qbittorrent版本", "value": "", "href":"https://www.fosshub.com/qBittorrent.html"},
     { "name": "qbittorrentWebApi版本", "value": "", "href":"https://github.com/qbittorrent/wiki/blob/master/WebUI-API-(qBittorrent-5.0).md"}
 ]
@@ -87,7 +88,6 @@ ensure_config_file(scan_config_path, DEFAULT_SCAN_CONFIG)
 ensure_config_file(rule_config_path, DEFAULT_RULE_CONFIG)
 ensure_config_file(rule_info_path, {})
 ensure_config_file(ai_chat_config_path, DEFAULT_AI_CHAT_CONFIG)
-ensure_config_file(app_info_path, DEFAULT_APP_INFO)
 ensure_config_file(auth_config_path, DEFAULT_AUTH_CONFIG)
 
 def load_json(file_path):
@@ -207,10 +207,8 @@ def get_search_config():
     return load_json(search_config_path) or DEFAULT_SEARCH_CONFIG
 
 def get_app_info():
-    app_info = load_json(app_info_path)
-    if not app_info:
-        app_info = DEFAULT_APP_INFO
-    return app_info
+    # 返回副本，避免调用方（如 /allVersion 回填 qBittorrent 版本）污染内置数据
+    return copy.deepcopy(APP_INFO)
 
 def save_search_config(data):
     search_config = {

@@ -1,7 +1,38 @@
 import os
+import subprocess
 import sys
 
 block_cipher = None
+
+
+def write_version(root):
+    """构建时把版本号文本化固定到 utils/_version.py：1.[已并入主干的远程分支数].[提交次数]"""
+
+    def git(args):
+        return subprocess.check_output(
+            ["git", *args], cwd=root, stderr=subprocess.DEVNULL
+        ).decode().strip()
+
+    try:
+        merged_branches = [
+            line.strip()
+            for line in git(["branch", "-r", "--merged", "main"]).splitlines()
+            if line.strip()
+            and "->" not in line
+            and not line.strip().endswith(("/main", "/master"))
+        ]
+        version = f"1.{len(merged_branches)}.{git(['rev-list', '--count', 'HEAD'])}"
+    except Exception:
+        print("[build] 无法从 git 计算版本号，保留 utils/_version.py 的现有内容")
+        return
+
+    with open(os.path.join(root, "utils", "_version.py"), "w", encoding="utf-8") as f:
+        f.write("# 由 build.spec 在构建时自动生成，请勿手动修改\n")
+        f.write(f'VERSION = "{version}"\n')
+    print(f"[build] 版本号已固定为 {version}")
+
+
+write_version(SPECPATH)
 
 a = Analysis(
     ['app.py'],
