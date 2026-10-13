@@ -695,9 +695,10 @@ SYSTEM_PROMPT = (
 
 
 # ---------- 核心对话逻辑 ----------
-def chat(message, conversation_id=None):
+def chat(message, conversation_id=None, username=""):
     """返回生成器，逐个产出 SSE 事件。
     conversation_id: 对话 ID，传 None 表示新对话（后端自动创建）。
+    username: 账号名，对话内容按账号分开存储。
     对话完成后自动保存完整上下文（含 tool_calls / tool 结果），下次继续对话时 AI 无需重复调用工具。
     """
     from utils.fun_conversation import (
@@ -723,11 +724,11 @@ def chat(message, conversation_id=None):
     # 确保有对话 ID
     is_new_conv = not conversation_id
     if is_new_conv:
-        conversation_id = create_conversation()
+        conversation_id = create_conversation(username)
     yield {"type": "conversation_id", "content": conversation_id}
 
     # 加载历史上下文（含 tool_calls / tool 结果，AI 无需重复调用工具）
-    context_messages = get_context_messages(conversation_id) if not is_new_conv else []
+    context_messages = get_context_messages(username, conversation_id) if not is_new_conv else []
     logger.info(f"[aiChat] 对话 {conversation_id} | 新建: {is_new_conv} | 上下文消息数: {len(context_messages)} | 新消息: {message[:50]}")
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -864,7 +865,7 @@ def chat(message, conversation_id=None):
             # 保存完整对话上下文
             all_context = context_messages + new_context
             title = message[:30] if is_new_conv else None
-            save_conversation_turn(conversation_id, message, all_context, display_items, title=title)
+            save_conversation_turn(username, conversation_id, message, all_context, display_items, title=title)
 
             logger.info(f"[aiChat] 对话完成 - 回复长度: {len(full_reply)}, 上下文总消息数: {len(all_context)}")
             yield {"type": "done"}

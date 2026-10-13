@@ -1,6 +1,7 @@
-# 用户数据：按用户名的观看历史与个性化设置，落盘 data/users.json
+# 用户数据：按用户名分目录存储，落盘 data/users/<username>/{history,settings}.json
 import logging
 import os
+import re
 from datetime import datetime
 
 from utils.config_manager import get_base_path, load_json_safe, save_json_safe
@@ -9,32 +10,94 @@ from utils.fun_scan import find_episode_by_file_id
 logger = logging.getLogger(__name__)
 
 _DATA_DIR_NAME = "data"
-_USERS_FILE_NAME = "users.json"
+_USERS_DIR_NAME = "users"
+# 旧版单文件用户数据（data/users.json），首次运行自动拆分到用户目录
+_LEGACY_FILE_NAME = "users.json"
+
+# 目录名里不允许出现的字符（Windows 限制与控制字符），统一替换为下划线
+_ILLEGAL_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
-def get_users_path():
-    """用户数据落盘路径：data/users.json"""
-    return os.path.join(get_base_path(), _DATA_DIR_NAME, _USERS_FILE_NAME)
+def get_users_dir():
+    """用户数据根目录：data/users"""
+    return os.path.join(get_base_path(), _DATA_DIR_NAME, _USERS_DIR_NAME)
 
 
-def _load_users():
-    """读取用户数据；文件尚不存在时静默返回空结构（首次运行）"""
-    path = get_users_path()
-    if not os.path.isfile(path):
-        return {}
-    return load_json_safe(path) or {}
+def _dir_name(username):
+    """用户名 -> 目录名：去掉首尾空白与非法文件名字符，避免建目录失败"""
+    name = re.sub(r"\s+", " ", str(username or "").strip())
+    return _ILLEGAL_CHARS.sub("_", name).strip(" .")
 
 
-def _save_users(users):
-    save_json_safe(get_users_path(), users)
+def get_user_dir(username):
+    """某个用户的数据目录：data/users/<username>"""
+    return os.path.join(get_users_dir(), _dir_name(username))
+
+
+def get_user_file(username, filename):
+    """某个用户的数据文件路径，如 history.json / settings.json / conversations.json
+
+    供其他模块（如 AI 对话）复用同一套按账号分目录的存储结构。
+    """
+    return os.path.join(get_user_dir(username), filename)
 
 
 def _normalize_username(username):
     return str(username or "").strip()
 
 
-def _get_user(users, name):
-    return users.setdefault(name, {"history": {}, "settings": {}})
+def _load_json(username, filename):
+    """读取用户目录下的 json，不存在返回 None"""
+    return load_json_safe(get_user_file(username, filename))
+
+
+def _save_json(username, filename, data):
+    return save_json_safe(get_user_file(username, filename), data)
+
+
+def _legacy_users_path():
+    return os.path.join(get_base_path(), _DATA_DIR_NAME, _LEGACY_FILE_NAME)
+
+
+def primary_username():
+    """主账号名：旧数据里的第一个用户
+
+    用于把历史遗留的全局数据（如 AI 对话）归属到主账号。
+    """
+    for path in (_legacy_users_path(), _legacy_users_path() + ".migrated"):
+        if not os.path.isfile(path):
+            continue
+        data = load_json_safe(path)
+        if isinstance(data, dict):
+            for name in data.keys():
+                return str(name)
+    return ""
+
+
+def migrate_legacy_users():
+    """把旧版单文件用户数据（data/users.json）拆分到 data/users/<username>/
+
+    已存在的新文件不覆盖；迁移完成后把旧文件改名为 users.json.migrated，避免重复执行。
+    """
+    legacy = _legacy_users_path()
+    if not os.path.isfile(legacy):
+        return
+    data = load_json_safe(legacy)
+    if isinstance(data, dict):
+        for name, user in data.items():
+            if not isinstance(user, dict):
+                continue
+            history = user.get("history") or {}
+            settings = user.get("settings") or {}
+            if history and not os.path.isfile(get_user_file(name, "history.json")):
+                _save_json(name, "history.json", history)
+            if settings and not os.path.isfile(get_user_file(name, "settings.json")):
+                _save_json(name, "settings.json", settings)
+    try:
+        os.replace(legacy, legacy + ".migrated")
+    except OSError as e:
+        logger.warning(f"[user] 旧用户数据改名失败: {e}")
+    logger.info("[user] 已将旧用户数据（data/users.json）拆分到 data/users/<username>/")
 
 
 def get_user_data(username):
@@ -42,11 +105,12 @@ def get_user_data(username):
     name = _normalize_username(username)
     if not name:
         return {"username": "", "history": {}, "settings": {}}
-    user = _load_users().get(name) or {}
+    history = _load_json(name, "history.json")
+    settings = _load_json(name, "settings.json")
     return {
         "username": name,
-        "history": user.get("history") or {},
-        "settings": user.get("settings") or {},
+        "history": history if isinstance(history, dict) else {},
+        "settings": settings if isinstance(settings, dict) else {},
     }
 
 
@@ -94,15 +158,16 @@ def record_history(username, video_id, position=0, duration=0):
     anime_id = str(episode["AnimeId"])
     episode_key = str(episode["EpisodeKey"])
 
-    users = _load_users()
-    user = _get_user(users, name)
+    history = _load_json(name, "history.json")
+    if not isinstance(history, dict):
+        history = {}
     record = {
         "position": _to_seconds(position),
         "duration": _to_seconds(duration),
         "updatedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    user["history"].setdefault(anime_id, {})[episode_key] = record
-    _save_users(users)
+    history.setdefault(anime_id, {})[episode_key] = record
+    _save_json(name, "history.json", history)
     return {"animeId": anime_id, "episodeKey": episode_key, **record}
 
 
@@ -113,9 +178,7 @@ def save_user_settings(username, settings):
         return False
     if not isinstance(settings, dict):
         return False
+    return _save_json(name, "settings.json", {str(k): str(v) for k, v in settings.items()})
 
-    users = _load_users()
-    user = _get_user(users, name)
-    user["settings"] = {str(k): str(v) for k, v in settings.items()}
-    _save_users(users)
-    return True
+
+migrate_legacy_users()

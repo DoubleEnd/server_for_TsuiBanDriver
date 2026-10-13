@@ -49,9 +49,16 @@ def submit_aiChat():
     data = request.json
     if not data:
         return error("请求体为空", 400)
+    username = str(data.get("username") or "").strip()
+    if not username:
+        return error("缺少username参数", 400)
 
     def generate():
-        for event in chat(message=data.get("message", ""), conversation_id=data.get("conversation_id")):
+        for event in chat(
+            message=data.get("message", ""),
+            conversation_id=data.get("conversation_id"),
+            username=username,
+        ):
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
     return Response(
@@ -63,8 +70,12 @@ def submit_aiChat():
 
 @ai_bp.route("/aiConversations", methods=["GET"])
 def submit_aiConversations():
+    """该账号的对话列表"""
+    username = request.args.get("username", "").strip()
+    if not username:
+        return error("缺少username参数", 400)
     try:
-        return success(list_conversations())
+        return success(list_conversations(username))
     except Exception as e:
         logger.error(f"[aiConversations] 获取对话列表失败: {str(e)}", exc_info=True)
         return error("获取对话列表失败", 500, msg=str(e))
@@ -72,11 +83,15 @@ def submit_aiConversations():
 
 @ai_bp.route("/aiConversation", methods=["GET"])
 def submit_aiConversation():
+    """该账号下某个对话的完整内容"""
     conv_id = request.args.get("id", "")
+    username = request.args.get("username", "").strip()
     if not conv_id:
         return error("缺少对话ID", 400)
+    if not username:
+        return error("缺少username参数", 400)
     try:
-        conv = get_conversation(conv_id)
+        conv = get_conversation(username, conv_id)
         if conv is None:
             return error("对话不存在", 404)
         return success(conv)
@@ -87,8 +102,12 @@ def submit_aiConversation():
 
 @ai_bp.route("/newAiConversation", methods=["POST"])
 def submit_newAiConversation():
+    data = request.json or {}
+    username = str(data.get("username") or "").strip()
+    if not username:
+        return error("缺少username参数", 400)
     try:
-        conv_id = create_conversation()
+        conv_id = create_conversation(username)
         return success({"id": conv_id})
     except Exception as e:
         logger.error(f"[newAiConversation] 创建对话失败: {str(e)}", exc_info=True)
@@ -100,8 +119,11 @@ def submit_deleteAiConversation():
     data = request.json
     if not data or not data.get("id"):
         return error("缺少对话ID", 400)
+    username = str(data.get("username") or "").strip()
+    if not username:
+        return error("缺少username参数", 400)
     try:
-        if delete_conversation(data["id"]):
+        if delete_conversation(username, data["id"]):
             return success()
         return error("对话不存在", 404)
     except Exception as e:
@@ -114,8 +136,11 @@ def submit_renameAiConversation():
     data = request.json
     if not data or not data.get("id") or not data.get("title"):
         return error("缺少对话ID或标题", 400)
+    username = str(data.get("username") or "").strip()
+    if not username:
+        return error("缺少username参数", 400)
     try:
-        if rename_conversation(data["id"], data["title"]):
+        if rename_conversation(username, data["id"], data["title"]):
             return success()
         return error("对话不存在", 404)
     except Exception as e:
