@@ -27,7 +27,10 @@ DEFAULT_URL_CONFIG = {
 # 媒体库扫描配置：扫描目录列表 + 黑名单（路径或文件名的正则，命中即跳过）
 DEFAULT_SCAN_CONFIG = {
     "scan_paths": [],
-    "scan_blacklist": []
+    "scan_blacklist": [],
+    # 周期自动扫描：默认开启，每 30 分钟触发一次快速扫描（只处理从未扫描过的新文件）
+    "auto_scan_enabled": True,
+    "auto_scan_interval": 30
 }
 
 DEFAULT_SEARCH_CONFIG = {
@@ -271,7 +274,11 @@ def get_scan_config():
     return config
 
 def save_scan_config(data):
-    """保存扫描配置：扫描目录与黑名单正则，做去空/去重处理"""
+    """保存扫描配置：扫描目录、黑名单与周期自动扫描设置
+
+    扫描目录/黑名单做去空去重；未提交的字段沿用已保存的值
+    （前端各入口只提交自己负责的字段）。
+    """
     def _clean(values):
         result = []
         for item in values or []:
@@ -280,9 +287,22 @@ def save_scan_config(data):
                 result.append(text)
         return result
 
+    current = get_scan_config()
+
+    enabled = data.get("auto_scan_enabled", current.get("auto_scan_enabled"))
+    if isinstance(enabled, str):
+        enabled = enabled.strip().lower() in ("1", "true", "yes", "on")
+
+    try:
+        interval = max(1, int(data.get("auto_scan_interval", current.get("auto_scan_interval"))))
+    except (TypeError, ValueError):
+        interval = DEFAULT_SCAN_CONFIG["auto_scan_interval"]
+
     config = {
-        "scan_paths": _clean(data.get("scan_paths")),
-        "scan_blacklist": _clean(data.get("scan_blacklist"))
+        "scan_paths": _clean(data.get("scan_paths", current.get("scan_paths"))),
+        "scan_blacklist": _clean(data.get("scan_blacklist", current.get("scan_blacklist"))),
+        "auto_scan_enabled": bool(enabled),
+        "auto_scan_interval": interval
     }
     save_json_safe(scan_config_path, config)
     return True

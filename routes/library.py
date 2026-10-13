@@ -12,9 +12,14 @@ library_bp = Blueprint('library', __name__)
 
 @library_bp.route("/scanLibrary", methods=["POST"])
 def submit_scanlibrary():
-    """立刻触发一次媒体库扫描，结果写入 data/library.json，返回扫描摘要"""
+    """立刻触发一次媒体库扫描，结果写入 data/library.json，返回扫描摘要
+
+    mode 为 fast 时执行快速扫描（只识别从未扫描过的文件并合并进已有番剧库），
+    其余取值执行完全扫描（重建整个番剧库）。
+    """
+    mode = (request.json or {}).get("mode", "full")
     try:
-        return success(fun_scan.scan_library())
+        return success(fun_scan.scan_library(mode=mode))
     except Exception as e:
         logger.error(f"[scanLibrary] 异常错误: {str(e)}", exc_info=True)
         return error("扫描媒体库失败", 500, msg=str(e))

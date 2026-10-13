@@ -3,6 +3,7 @@ import hashlib
 import logging
 import os
 import re
+import threading
 import time
 from datetime import datetime
 
@@ -218,15 +219,43 @@ def _build_local_series(series_dir, group):
     }
 
 
-def scan_library():
+def _known_files(library):
+    """已有番剧库中的文件记录：路径 -> {AnimeId, EpisodeId, AnimeTitle, EpisodeTitle}
+
+    快速扫描据此跳过存量文件的识别接口调用，直接复用上次识别结果；
+    未识别的文件同样在库中（AnimeId 为空），一并视为「已扫描过」。
+    """
+    known = {}
+    for series in (library or {}).get("series") or []:
+        anime_id = str(series.get("animeId") or "")
+        anime_title = series.get("title") or ""
+        for item in series.get("files") or []:
+            if item.get("path"):
+                known[item["path"]] = {
+                    "AnimeId": anime_id,
+                    "EpisodeId": str(item.get("episodeId") or ""),
+                    "AnimeTitle": anime_title,
+                    "EpisodeTitle": item.get("episodeTitle") or "",
+                }
+    return known
+
+
+def scan_library(mode="full"):
     """执行一次媒体库扫描，结果写入 data/library.json，返回扫描摘要
 
     流程：遍历扫描目录 → 复用已有识别记录或调用弹弹play 识别文件所属番剧与剧集
     → 按 animeId 归组 → 拉取番剧详情（名称/封面/评分/季度/剧集列表）→ 清理失效记录 → 落盘。
-    已有识别记录的文件不再请求识别接口；文件已删除、被移走或命中黑名单的记录会被删除，
+    两种模式的清理行为一致：文件已删除、被移走或命中黑名单的记录会被删除，
     作品下已无任何文件的识别记录也会一并清理，不留空白作品。
     未配置弹弹play 凭证时跳过识别，退化为按目录归组，功能仍可用。
+
+    mode="full"（默认）完全扫描：所有文件都走识别流程（已有识别记录的直接复用，不重复请求接口）。
+    mode="fast" 快速扫描：对「已在番剧库中记录」的文件不再调用识别接口，直接复用上次结果
+    （含扫描过但未识别的文件），只对新增文件走识别流程；其余步骤与完全扫描完全相同。
     """
+    mode = "fast" if str(mode).lower() == "fast" else "full"
+    fast = mode == "fast"
+
     if _scan_state["running"]:
         logger.warning("[scan] 已有扫描任务进行中，忽略本次触发")
         return {"running": True, "message": "已有扫描任务进行中"}
@@ -237,7 +266,7 @@ def scan_library():
 
     if not scan_paths:
         logger.warning("[scan] 未配置任何扫描目录，已跳过")
-        return {"total_files": 0, "total_series": 0, "skipped": 0, "message": "未配置扫描目录"}
+        return {"total_files": 0, "total_series": 0, "skipped": 0, "mode": mode, "message": "未配置扫描目录"}
 
     identified = fun_dandan.is_configured()
     if not identified:
@@ -245,7 +274,7 @@ def scan_library():
 
     _scan_state["running"] = True
     started = time.time()
-    logger.info(f"[scan] 开始扫描，目录: {scan_paths}，黑名单规则: {len(blacklist)} 条，识别: {identified}")
+    logger.info(f"[scan] 开始{mode}扫描，目录: {scan_paths}，黑名单规则: {len(blacklist)} 条，识别: {identified}")
 
     try:
         total_skipped = 0
@@ -261,13 +290,22 @@ def scan_library():
                 collected.append((root, item))
 
         total_files = len(collected)
-        logger.info(f"[scan] 共 {total_files} 个视频文件，开始识别")
+        # 快速扫描：以番剧库中已有记录为准，已记录的文件不再请求识别接口
+        known = _known_files(load_library()) if fast else {}
+        logger.info(f"[scan] 共 {total_files} 个视频文件，已有记录 {len(known)} 个")
 
         matched_groups = {}
         local_groups = {}
         unmatched = 0
+        identified_count = 0
+        reused_count = 0
         for root, item in collected:
-            info = fun_dandan.match_file(item["path"], item["name"]) if identified else None
+            info = known.get(item["path"]) if fast else None
+            if info is not None:
+                reused_count += 1
+            if info is None and identified:
+                identified_count += 1
+                info = fun_dandan.match_file(item["path"], item["name"])
             if info and info.get("AnimeId"):
                 item["episodeId"] = info.get("EpisodeId") or ""
                 item["episodeTitle"] = info.get("EpisodeTitle") or ""
@@ -309,8 +347,9 @@ def scan_library():
         save_json_safe(get_library_path(), library)
         fun_dandan.save_cache()
         logger.info(
-            f"[scan] 扫描完成：{len(series)} 部番剧 / {total_files} 个文件"
-            f"（未识别 {unmatched} 个），黑名单跳过 {total_skipped} 个，"
+            f"[scan] {mode}扫描完成：{len(series)} 部番剧 / {total_files} 个文件"
+            f"（本次识别 {identified_count} 个，复用已有记录 {reused_count} 个，未识别 {unmatched} 个），"
+            f"黑名单跳过 {total_skipped} 个，"
             f"清理识别记录 {pruned['matches']} 条失效文件 / {pruned['bangumi']} 条无文件作品，"
             f"清理弹幕缓存 {pruned_danmaku} 份，"
             f"耗时 {elapsed}s，已写入 {get_library_path()}"
@@ -318,6 +357,7 @@ def scan_library():
 
         result = {
             "updated_at": library["updated_at"],
+            "mode": mode,
             "total_files": total_files,
             "total_series": len(series),
             "skipped": total_skipped,
@@ -329,6 +369,63 @@ def scan_library():
         return result
     finally:
         _scan_state["running"] = False
+
+
+# ---------- 周期自动扫描调度 ----------
+
+# 周期扫描线程与其退出信号（应用启动时启动，随进程退出）
+_auto_scan_thread = None
+_auto_scan_stop = threading.Event()
+# 检查周期（秒）：每 30 秒比对一次是否到达扫描间隔，配置调整可较快生效
+_AUTO_SCAN_TICK = 30
+
+
+def _auto_scan_interval_seconds(config):
+    """配置中的扫描间隔（分钟）换算为秒，非法值回退为 30 分钟"""
+    try:
+        minutes = max(1, int(config.get("auto_scan_interval") or 30))
+    except (TypeError, ValueError):
+        minutes = 30
+    return minutes * 60
+
+
+def _auto_scan_loop():
+    """周期扫描线程：按配置间隔触发一次快速扫描
+
+    每次触发前重新读取配置：关闭自动扫描时跳过本次触发；
+    间隔调整后按新间隔计时，无需重启服务。
+    触发的扫描为快速扫描（只处理从未扫描过的新文件）。
+    """
+    last_run = time.time()
+    while not _auto_scan_stop.wait(_AUTO_SCAN_TICK):
+        config = get_scan_config()
+        if time.time() - last_run < _auto_scan_interval_seconds(config):
+            continue
+        last_run = time.time()
+        if not config.get("auto_scan_enabled", True):
+            logger.info("[scan] 周期扫描已关闭，跳过本次触发")
+            continue
+        logger.info("[scan] 触发周期扫描（快速扫描）")
+        try:
+            result = scan_library(mode="fast")
+            logger.info(
+                f"[scan] 周期扫描完成：{result.get('total_series')} 部番剧 / "
+                f"{result.get('total_files')} 个文件（未识别 {result.get('unmatched')} 个）"
+            )
+        except Exception as e:
+            logger.error(f"[scan] 周期扫描异常: {e}", exc_info=True)
+
+
+def start_auto_scan():
+    """启动周期扫描后台线程（应用启动时调用），重复调用只启动一次"""
+    global _auto_scan_thread
+    if _auto_scan_thread and _auto_scan_thread.is_alive():
+        return _auto_scan_thread
+    _auto_scan_stop.clear()
+    _auto_scan_thread = threading.Thread(target=_auto_scan_loop, name="auto-scan", daemon=True)
+    _auto_scan_thread.start()
+    logger.info("[scan] 周期自动扫描调度器已启动")
+    return _auto_scan_thread
 
 
 # ---------- 番剧库查询（首页番剧列表 / 详情） ----------
