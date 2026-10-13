@@ -147,10 +147,9 @@ def submit_getSubtitleList():
     has_internal = False
     for index, item in enumerate(fun_subtitle.list_subtitles(path)):
         if item["source"] == "external":
-            # .ssa 与 .ass 同属 ASS 系列，统一按 ass 交给播放器解析
-            sub_type = os.path.splitext(item["path"])[1].lstrip(".").lower()
-            if sub_type == "ssa":
-                sub_type = "ass"
+            # 按文件内容判断真实格式（ass/ssa 统一成 ass）：发布组把 SRT 存成 .ass 很常见，
+            # 只看扩展名会让前端选错渲染器（ass 交 libass）而加载失败
+            sub_type = fun_subtitle.detect_external_format(item["path"])
         else:
             has_internal = True
             # ASS/SSA 内封字幕按 ass 输出以保留样式（交给前端 libass 渲染），

@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import subprocess
 import threading
 import time
@@ -195,6 +196,39 @@ def read_external_subtitle(sub_path):
         logger.error(f"[subtitle] 读取外挂字幕失败: {e}")
         return None
     return _decode_bytes(data)
+
+
+# 判断外挂字幕真实格式时只读文件头部（ASS 的 [Script Info] 一定在最前面）
+_SUB_SNIFF_BYTES = 8192
+
+# SRT 时间轴：00:00:17,100 --> 00:00:21,600
+_SRT_TIME_RE = re.compile(r"\d{1,2}:\d{2}:\d{2}[,.]\d{1,3}\s*-->")
+
+
+def detect_external_format(sub_path):
+    """按文件内容判断外挂字幕真实格式（ass / srt / vtt），无法识别时退回扩展名
+
+    不能只看扩展名：发布组把 SRT 内容存成 .ass 的情况很常见，而前端按类型选择渲染器
+    （ass 交给 libass），判错会导致字幕渲染失败（libass 解析报错后整个渲染器都不可用）。
+    """
+    ext = os.path.splitext(sub_path)[1].lstrip(".").lower()
+    fallback = "ass" if ext == "ssa" else (ext or "srt")
+    try:
+        with open(sub_path, "rb") as f:
+            text = _decode_bytes(f.read(_SUB_SNIFF_BYTES))
+    except (OSError, UnicodeDecodeError) as e:
+        logger.error(f"[subtitle] 读取外挂字幕头部失败: {e}")
+        return fallback
+
+    head = text.lstrip("\ufeff").lstrip()
+    if head.startswith("WEBVTT"):
+        return "vtt"
+    lowered = head.lower()
+    if "[script info]" in lowered or "[events]" in lowered:
+        return "ass"
+    if _SRT_TIME_RE.search(head):
+        return "srt"
+    return fallback
 
 
 def _cache_file(video_path, stream_index, ext):
