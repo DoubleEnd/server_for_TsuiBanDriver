@@ -2,6 +2,7 @@
 import logging
 import os
 import re
+import threading
 from datetime import datetime
 
 from utils.config_manager import get_base_path, load_json_safe, save_json_safe
@@ -16,6 +17,44 @@ _LEGACY_FILE_NAME = "users.json"
 
 # 目录名里不允许出现的字符（Windows 限制与控制字符），统一替换为下划线
 _ILLEGAL_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+# 历史文件是「读-改-写」整份文件，两个客户端同时保存时会互相覆盖（后写者丢掉前者的记录），
+# 因此按用户在进程内串行；后端目前是 Flask 自带服务器的多线程单进程模型，进程内锁足够
+_history_locks = {}
+_history_locks_guard = threading.Lock()
+
+
+def _history_lock(name):
+    """取某个用户历史文件的互斥锁"""
+    with _history_locks_guard:
+        lock = _history_locks.get(name)
+        if lock is None:
+            lock = threading.Lock()
+            _history_locks[name] = lock
+        return lock
+
+
+def _read_history_file(name):
+    """读取用户历史；文件存在但内容解析不出来时先备份再返回空
+
+    否则会把一份（可能还能抢救的）历史直接当成空历史覆盖掉。
+    """
+    path = get_user_file(name, "history.json")
+    try:
+        history = _load_json(name, "history.json")
+    except Exception as e:
+        logger.error(f"[history] 读取历史失败: {e}")
+        history = None
+    if history is None:
+        if os.path.isfile(path):
+            backup = f"{path}.corrupt-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            try:
+                os.replace(path, backup)
+                logger.warning(f"[history] 历史文件无法解析，已备份到 {backup}")
+            except OSError as e:
+                logger.error(f"[history] 备份损坏的历史文件失败: {e}")
+        return {}
+    return history if isinstance(history, dict) else {}
 
 
 def get_users_dir():
@@ -158,16 +197,16 @@ def record_history(username, video_id, position=0, duration=0):
     anime_id = str(episode["AnimeId"])
     episode_key = str(episode["EpisodeKey"])
 
-    history = _load_json(name, "history.json")
-    if not isinstance(history, dict):
-        history = {}
     record = {
         "position": _to_seconds(position),
         "duration": _to_seconds(duration),
         "updatedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    history.setdefault(anime_id, {})[episode_key] = record
-    _save_json(name, "history.json", history)
+    # 读-改-写放在同一把锁里，避免两个客户端同时保存时后写的人丢掉前者的记录
+    with _history_lock(_dir_name(name)):
+        history = _read_history_file(name)
+        history.setdefault(anime_id, {})[episode_key] = record
+        _save_json(name, "history.json", history)
     return {"animeId": anime_id, "episodeKey": episode_key, **record}
 
 
