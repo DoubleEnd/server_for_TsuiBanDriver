@@ -694,12 +694,30 @@ SYSTEM_PROMPT = (
 )
 
 
+def _sanitize_context(messages):
+    """裁掉末尾未配齐 tool 结果的 assistant 工具调用消息。
+
+    网络中断或用户中途停止时，上下文可能停在「已发起工具调用但结果没全部写入」
+    的状态，这种半截消息会让下一次请求被 API 拒绝，因此落盘前统一裁掉。
+    """
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            expected = {tc.get("id") for tc in msg["tool_calls"]}
+            actual = {m.get("tool_call_id") for m in messages[i + 1:] if m.get("role") == "tool"}
+            if not expected.issubset(actual):
+                del messages[i:]
+            return messages
+    return messages
+
+
 # ---------- 核心对话逻辑 ----------
 def chat(message, conversation_id=None, username=""):
     """返回生成器，逐个产出 SSE 事件。
     conversation_id: 对话 ID，传 None 表示新对话（后端自动创建）。
     username: 账号名，对话内容按账号分开存储。
-    对话完成后自动保存完整上下文（含 tool_calls / tool 结果），下次继续对话时 AI 无需重复调用工具。
+    每个轮次结束（正常完成、工具轮次超限、请求出错、用户中断）都会保存已产生的上下文
+    （含 tool_calls / tool 结果），下次继续对话时 AI 无需重复调用工具。
     """
     from utils.fun_conversation import (
         get_context_messages, create_conversation, save_conversation_turn
@@ -739,13 +757,37 @@ def chat(message, conversation_id=None, username=""):
     display_items = []
     # 本轮新增的上下文消息（用户消息 + AI 回复 + 工具调用/结果）
     new_context = [{"role": "user", "content": message}]
+    # 本轮已流式产出的文本
+    full_reply_parts = []
+    # 展示项中是否已写入文本，避免出错落盘时重复追加
+    text_item_saved = False
+
+    def persist_turn():
+        """把本轮已产生的上下文与展示项落盘。
+
+        正常结束、工具轮次超限、网络/接口出错、用户中断都会走到这里，
+        避免一次失败就把整轮上下文丢掉，下次继续对话时 AI 仍能看到
+        之前的消息与工具调用结果。
+        """
+        nonlocal text_item_saved
+        all_context = _sanitize_context(context_messages + new_context)
+        if not text_item_saved and full_reply_parts:
+            # 中途出错/中断时已流式输出的文本，同样补进展示项与上下文，保持前后端一致
+            partial_text = "".join(full_reply_parts)
+            display_items.append({"type": "text", "content": partial_text})
+            all_context.append({"role": "assistant", "content": partial_text})
+            text_item_saved = True
+        title = message[:30] if is_new_conv else None
+        save_conversation_turn(username, conversation_id, message, all_context, display_items, title=title)
+        logger.info(
+            f"[aiChat] 落盘对话 {conversation_id} | 上下文消息数: {len(all_context)}"
+            f" | 展示项: {len(display_items)}"
+        )
 
     yield {"type": "thinking", "content": "正在分析你的需求..."}
 
-    full_reply_parts = []
-
-    for round_num in range(max_tool_rounds):
-        try:
+    try:
+        for round_num in range(max_tool_rounds):
             resp = requests.post(
                 f"{base_url}/v1/chat/completions",
                 headers={
@@ -859,28 +901,34 @@ def chat(message, conversation_id=None, username=""):
 
             # 记录展示项
             display_items.append({"type": "text", "content": full_reply})
+            text_item_saved = True
 
             yield {"type": "reply_complete", "content": full_reply}
 
-            # 保存完整对话上下文
-            all_context = context_messages + new_context
-            title = message[:30] if is_new_conv else None
-            save_conversation_turn(username, conversation_id, message, all_context, display_items, title=title)
-
-            logger.info(f"[aiChat] 对话完成 - 回复长度: {len(full_reply)}, 上下文总消息数: {len(all_context)}")
+            logger.info(f"[aiChat] 对话完成 - 回复长度: {len(full_reply)}")
             yield {"type": "done"}
             return
 
-        except requests.exceptions.Timeout:
-            logger.error("[aiChat] API 请求超时")
-            yield {"type": "error", "content": "AI 服务响应超时，请稍后重试"}
-            yield {"type": "done"}
-            return
-        except requests.exceptions.ConnectionError:
-            logger.error("[aiChat] API 连接失败")
-            yield {"type": "error", "content": "无法连接 AI 服务，请检查网络"}
-            yield {"type": "done"}
-            return
+        yield {"type": "error", "content": f"工具调用轮次已达上限（{max_tool_rounds} 轮），请简化问题后重试"}
+        yield {"type": "done"}
 
-    yield {"type": "error", "content": f"工具调用轮次已达上限（{max_tool_rounds} 轮），请简化问题后重试"}
-    yield {"type": "done"}
+    except requests.exceptions.Timeout:
+        logger.error("[aiChat] API 请求超时")
+        yield {"type": "error", "content": "AI 服务响应超时，请稍后重试"}
+        yield {"type": "done"}
+    except requests.exceptions.ConnectionError:
+        logger.error("[aiChat] API 连接失败")
+        yield {"type": "error", "content": "无法连接 AI 服务，请检查网络"}
+        yield {"type": "done"}
+    except requests.exceptions.RequestException as e:
+        # 流式传输中途断开（ChunkedEncodingError 等）也归到这里
+        logger.error(f"[aiChat] API 请求异常: {type(e).__name__} - {str(e)}")
+        yield {"type": "error", "content": "AI 服务连接中断，请稍后重试"}
+        yield {"type": "done"}
+    except Exception as e:
+        logger.error(f"[aiChat] 对话处理失败: {str(e)}", exc_info=True)
+        yield {"type": "error", "content": f"AI 对话处理出错: {str(e)}"}
+        yield {"type": "done"}
+    finally:
+        # 正常结束、报错、被中断都统一在此落盘，保证上下文不因一次失败而丢失
+        persist_turn()
