@@ -303,13 +303,40 @@ def _parse_comment(comment):
     }
 
 
+def _comment_key(item):
+    """弹幕去重键：出现时间 + 模式 + 文本
+
+    弹弹play 的 withRelated 会把同一弹幕从多个源返回，同一内容在不同源/不同批次
+    拿到的 cid 并不稳定，不能作为唯一键；否则每次刷新都会把同一弹幕再合并一份。
+    """
+    text = str(item.get("text") or "").strip()
+    if not text:
+        return ""
+    try:
+        moment = round(float(item.get("time") or 0), 1)
+    except (TypeError, ValueError):
+        moment = 0
+    return f"{moment}|{item.get('mode', 0)}|{text}"
+
+
 def get_cached_comments(episode_id):
-    """读取缓存的弹幕，没有缓存返回 None"""
+    """读取缓存的弹幕，没有缓存返回 None
+
+    历史缓存可能因旧版按 cid 合并而积累重复，这里顺手去重并回写一次。
+    """
     path = _danmaku_path(episode_id)
     if not os.path.isfile(path):
         return None
     items = (load_json_safe(path) or {}).get("items")
-    return items if isinstance(items, list) else None
+    if not isinstance(items, list):
+        return None
+    deduped = merge_comments([], items)
+    if len(deduped) != len(items):
+        logger.info(
+            f"[dandan] 清理弹幕缓存重复: {episode_id} {len(items)} -> {len(deduped)} 条"
+        )
+        save_comments(episode_id, deduped)
+    return deduped
 
 
 def save_comments(episode_id, items):
@@ -324,16 +351,17 @@ def save_comments(episode_id, items):
 
 
 def merge_comments(old_items, new_items):
-    """合并两批弹幕：按 cid 去重取并集，并按出现时间排序
+    """合并两批弹幕：按「时间 + 模式 + 文本」去重取并集，并按出现时间排序
 
-    同一 cid 以新数据为准；第三方弹幕源抖动导致某次返回变少时，
-    旧缓存里的弹幕不会被丢掉。
+    同一内容以新数据为准；第三方弹幕源抖动导致某次返回变少时，
+    旧缓存里的弹幕不会被丢掉。cid 跨源/跨批次不稳定，不能作为去重键，
+    否则每次刷新都会累积出一份重复弹幕。
     """
     merged = {}
     for item in list(new_items or []) + list(old_items or []):
-        key = str(item.get("cid") or "")
+        key = _comment_key(item)
         if not key:
-            key = f"{item.get('time')}|{item.get('mode')}|{item.get('text')}"
+            continue
         merged.setdefault(key, item)
     return sorted(merged.values(), key=lambda item: item.get("time") or 0)
 
