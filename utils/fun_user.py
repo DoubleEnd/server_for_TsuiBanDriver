@@ -220,4 +220,31 @@ def save_user_settings(username, settings):
     return _save_json(name, "settings.json", {str(k): str(v) for k, v in settings.items()})
 
 
+def get_read_marks(username):
+    """首页卡片的「新」标签已读记录：{animeId: 已读时间}
+
+    与观看历史分开存放（read_marks.json），避免把「打开过番剧」和「看过哪一集」混在一起。
+    """
+    name = _normalize_username(username)
+    if not name:
+        return {}
+    marks = _load_json(name, "read_marks.json")
+    return marks if isinstance(marks, dict) else {}
+
+
+def mark_anime_read(username, anime_id):
+    """把某部番剧标记为已读（首页卡片的「新」标签随之消失）"""
+    name = _normalize_username(username)
+    anime_id = str(anime_id or "").strip()
+    if not name or not anime_id:
+        return None
+    read_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 与历史记录共用同一把用户锁：同样是读-改-写整份文件
+    with _history_lock(_dir_name(name)):
+        marks = get_read_marks(name)
+        marks[anime_id] = read_at
+        _save_json(name, "read_marks.json", marks)
+    return {"animeId": anime_id, "readAt": read_at}
+
+
 migrate_legacy_users()

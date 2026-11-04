@@ -58,6 +58,24 @@ def submit_savehistory():
         return error("保存观看历史失败", 500, msg=str(e))
 
 
+@user_bp.route("/markAnimeRead", methods=["POST"])
+def submit_markanimeread():
+    """标记番剧已读：首页卡片上的「新」标签据此消失"""
+    data = request.json or {}
+    username = data.get("username", "")
+    anime_id = str(data.get("animeId", "")).strip()
+    if not username.strip() or not anime_id:
+        return error("缺少username或animeId参数", 400)
+    try:
+        record = fun_user.mark_anime_read(username, anime_id)
+        if record is None:
+            return error("标记番剧已读失败", 400)
+        return success(record)
+    except Exception as e:
+        logger.error(f"[markAnimeRead] 异常错误: {str(e)}", exc_info=True)
+        return error("标记番剧已读失败", 500, msg=str(e))
+
+
 @user_bp.route("/saveUserSettings", methods=["POST"])
 def submit_saveusersettings():
     """保存该用户的个性化设置（lang/弹幕/时间表等）"""

@@ -1,14 +1,23 @@
 # Bangumi.tv 公共接口请求：官方站 / 镜像站、带代理 / 直连依次尝试
 import logging
+import os
+import threading
+from datetime import datetime
 
 import requests
 
+from utils.config_manager import get_base_path, load_json_safe, save_json_safe
 from utils.fun_request import request as fun_request
 
 logger = logging.getLogger(__name__)
 
 BGMI_API = "https://api.bgm.tv"
 BGMI_MIRROR_API = "https://bgmapi.anibt.net"
+
+# 时间表缓存文件：data/calendar_cache.json
+_CALENDAR_CACHE_FILE = "calendar_cache.json"
+# 时间表后台刷新互斥：同一时间只允许一个刷新任务，避免并发重复请求上游
+_calendar_refreshing = threading.Lock()
 
 
 class BangumiApiError(Exception):
@@ -76,3 +85,66 @@ def request_bangumi_api(rel_path, method="GET", params=None, data=None, headers=
 def get_subject(subject_id, use_mirror=False):
     """取 Bangumi.tv 条目详情（名称、简介、封面、评分）"""
     return request_bangumi_api(f"subject/{subject_id}", use_mirror=use_mirror)
+
+
+def get_calendar_cache_path():
+    """时间表缓存路径：data/calendar_cache.json"""
+    return os.path.join(get_base_path(), "data", _CALENDAR_CACHE_FILE)
+
+
+def _load_calendar_cache():
+    """读取时间表缓存，内容不可用时返回 None"""
+    path = get_calendar_cache_path()
+    if not os.path.isfile(path):
+        return None
+    data = load_json_safe(path)
+    if isinstance(data, dict) and isinstance(data.get("days"), list) and data["days"]:
+        return data
+    return None
+
+
+def _save_calendar_cache(days):
+    save_json_safe(get_calendar_cache_path(), {
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "days": days,
+    })
+
+
+def _refresh_calendar_cache(use_mirror):
+    """后台刷新时间表缓存：请求最新数据并覆盖缓存，失败保留旧缓存"""
+    if not _calendar_refreshing.acquire(blocking=False):
+        # 已有刷新任务在进行，跳过本次，避免并发重复请求上游
+        return
+    try:
+        body = request_bangumi_api("calendar", use_mirror=use_mirror)
+        days = body if isinstance(body, list) else []
+        if not days:
+            logger.warning("[bangumi] 时间表刷新返回为空，保留旧缓存")
+            return
+        _save_calendar_cache(days)
+        logger.info(f"[bangumi] 时间表缓存已刷新：{len(days)} 天")
+    except Exception as e:
+        logger.warning(f"[bangumi] 时间表缓存刷新失败，保留旧缓存: {e}")
+    finally:
+        _calendar_refreshing.release()
+
+
+def get_calendar(use_mirror=False):
+    """番剧时间表：有缓存就立即返回缓存，同时后台请求最新数据覆盖缓存
+
+    没有缓存时同步请求一次（此时才需要等网络），并写入缓存。
+    """
+    cache = _load_calendar_cache()
+    if cache:
+        threading.Thread(
+            target=_refresh_calendar_cache,
+            args=(use_mirror,),
+            daemon=True,
+        ).start()
+        return cache["days"]
+
+    body = request_bangumi_api("calendar", use_mirror=use_mirror)
+    days = body if isinstance(body, list) else []
+    if days:
+        _save_calendar_cache(days)
+    return days

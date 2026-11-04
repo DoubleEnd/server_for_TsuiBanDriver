@@ -47,7 +47,8 @@ def submit_bangumi_search():
     logger.info(f"[bangumi/search] 导航: {nav}, 关键字: {keyword}, 用户: {username}")
     try:
         history = fun_user.get_history(username)
-        return success(fun_scan.search_bangumi(keyword=keyword, nav=nav, history=history))
+        read_marks = fun_user.get_read_marks(username)
+        return success(fun_scan.search_bangumi(keyword=keyword, nav=nav, history=history, read_marks=read_marks))
     except Exception as e:
         logger.error(f"[bangumi/search] 异常错误: {str(e)}", exc_info=True)
         return error("获取番剧列表失败", 500, msg=str(e), data=[])

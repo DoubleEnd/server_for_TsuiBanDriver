@@ -3,7 +3,7 @@ import logging
 
 from flask import Blueprint, request
 
-from utils.fun_bangumi import BangumiApiError, request_bangumi_api
+from utils.fun_bangumi import BangumiApiError, get_calendar, request_bangumi_api
 from utils.fun_response import success, error
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,16 @@ def bangumi_proxy(subpath):
     upstream_headers = {k: v for k, v in request.headers.items()
                         if k.lower() not in ("host", "content-length", "cookie", "authorization")}
     content_type = request.headers.get("Content-Type", "")
+
+    # 时间表：有缓存立即返回缓存，同时由后端在后台请求最新数据覆盖缓存
+    if method == "GET" and subpath.strip("/") == "calendar":
+        try:
+            return success(get_calendar(use_mirror=use_mirror))
+        except BangumiApiError as e:
+            return error("获取时间表失败", 502, msg=str(e))
+        except Exception as e:
+            logger.error(f"[bangumi/proxy] 时间表异常: {str(e)}", exc_info=True)
+            return error("获取时间表失败", 500, msg=str(e))
 
     if content_type.startswith("application/json") or request.is_json:
         json_data = request.get_json(silent=True)

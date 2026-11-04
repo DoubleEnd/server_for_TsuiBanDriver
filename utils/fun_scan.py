@@ -291,7 +291,9 @@ def scan_library(mode="full"):
 
         total_files = len(collected)
         # 快速扫描：以番剧库中已有记录为准，已记录的文件不再请求识别接口
-        known = _known_files(load_library()) if fast else {}
+        # 旧库同时用于判定本次扫描是否有新增内容（「新」标签）
+        previous_library = load_library() or {}
+        known = _known_files(previous_library) if fast else {}
         logger.info(f"[scan] 共 {total_files} 个视频文件，已有记录 {len(known)} 个")
 
         matched_groups = {}
@@ -323,6 +325,26 @@ def scan_library(mode="full"):
         series = [_build_series_by_anime(aid, group) for aid, group in matched_groups.items()]
         series += [_build_local_series(d, group) for d, group in local_groups.items()]
         series.sort(key=lambda s: (s.get("title") or "").lower())
+
+        # 「新」标签：只有本次扫描新增的番剧 / 新增的本地文件才刷新时间；
+        # 首次扫描（还没有旧库）不打标签，避免把已有番剧全标成新
+        previous_series = previous_library.get("series") or []
+        previous_state = {
+            _series_id(series_item): {
+                "paths": {
+                    file_item["path"]
+                    for file_item in series_item.get("files") or []
+                    if file_item.get("path")
+                },
+                "newAt": series_item.get("newAt") or "",
+            }
+            for series_item in previous_series
+        }
+        scanned_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for series_item in series:
+            series_item["newAt"] = _new_at_of_series(
+                series_item, previous_state, bool(previous_series), scanned_at
+            )
 
         # 清理识别记录：文件已消失或命中黑名单的删除，作品下已无任何文件的记录一并删除
         pruned = fun_dandan.prune_cache(item["path"] for _root, item in collected)
@@ -526,6 +548,26 @@ def _latest_episode_number(series):
     return len(files)
 
 
+def _new_at_of_series(series, previous_state, has_previous, scanned_at):
+    """该番剧「有新内容」的时间（空串表示从未有过新增）
+
+    本次扫描出现的新番剧、或已有番剧下新增了本地文件，才把时间刷新为本次扫描时间；
+    否则沿用旧值——这样用户已读之后，重新扫描不会再把「新」标签点亮。
+    首次扫描（旧库为空）不算新增，避免把库里所有番剧都标成新。
+    """
+    if not has_previous:
+        return ""
+    previous = previous_state.get(_series_id(series))
+    paths = {
+        file_item["path"]
+        for file_item in series.get("files") or []
+        if file_item.get("path")
+    }
+    if previous is None or paths - previous["paths"]:
+        return scanned_at
+    return previous["newAt"]
+
+
 def _to_bangumi_item(series):
     """番剧列表项：优先使用在线信息（封面/评分/集数/季度分组），未识别时回退本地"""
     files = series.get("files") or []
@@ -547,6 +589,8 @@ def _to_bangumi_item(series):
         "EpisodeTotal": series.get("episodeCount") or len(files),
         # 本地已有文件对应的最新集号（首页卡片第二行展示「全 N 话」）
         "EpisodeLatest": _latest_episode_number(series),
+        # 该番剧最近一次「有新内容」的扫描时间（空串表示没有新内容）
+        "NewAt": series.get("newAt") or "",
         "GroupName": group_name,
     }
 
@@ -556,15 +600,17 @@ def _last_play(episodes):
     return max((r.get("updatedAt") or "" for r in (episodes or {}).values()), default="")
 
 
-def search_bangumi(keyword="", nav="name", history=None):
+def search_bangumi(keyword="", nav="name", history=None, read_marks=None):
     """首页番剧列表：从本地番剧库检索，按关键字过滤并按导航方式排序
 
     nav 取值与前端一致（season/lastplay/lastupdate/lastadd/name/category/rating）。
     history（结构为 {animeId: {集数: 记录}}）传入后，可回填「已看集数」。
+    read_marks（{animeId: 已读时间}）传入后，可判断「新」标签是否已读。
     最近播放 / 最近更新 / 最近添加 三种导航以月份为大分类，分组名直接写入 GroupName。
     """
     library = load_library() or {}
     anime_history = history or {}
+    anime_read_marks = read_marks or {}
     nav = nav or "season"
 
     entries = []
@@ -572,6 +618,9 @@ def search_bangumi(keyword="", nav="name", history=None):
         item = _to_bangumi_item(series)
         episodes = anime_history.get(item["AnimeId"]) or {}
         item["EpisodeWatched"] = min(len(episodes), item["EpisodeTotal"])
+        # 「新」= 扫描发现过新内容，且用户在上次新增之后还没点开过
+        read_at = anime_read_marks.get(item["AnimeId"]) or ""
+        item["IsNew"] = bool(item["NewAt"] and item["NewAt"] > read_at)
         entries.append({
             "item": item,
             "newest": _newest_mtime(series),
